@@ -1,0 +1,1008 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Installment Manager — Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#12182B;
+    --ink-soft:#1D2646;
+    --paper:#F4F5F9;
+    --card:#FFFFFF;
+    --border:#E4E7EE;
+    --text:#1B2130;
+    --text-soft:#626A7A;
+    --text-faint:#8B93A3;
+    --green:#1D9A56;
+    --green-soft:#E6F6EC;
+    --rust:#C23B2C;
+    --rust-soft:#FCEAE8;
+    --indigo:#4C5FD5;
+    --indigo-soft:#EEF0FD;
+    --amber:#C07C0B;
+    --amber-soft:#FBF0DA;
+    --radius:10px;
+    --shadow:0 1px 2px rgba(18,24,43,0.05), 0 1px 14px rgba(18,24,43,0.05);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:'Inter',Arial,sans-serif;
+    background:var(--paper);
+    color:var(--text);
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3{font-family:'Manrope',Arial,sans-serif; margin:0;}
+  .layout{display:flex; min-height:100vh;}
+
+  /* ===== Sidebar ===== */
+  .sidebar{
+    width:230px;
+    flex-shrink:0;
+    background:var(--ink);
+    color:#EDEFF7;
+    padding:22px 14px;
+    display:flex;
+    flex-direction:column;
+    gap:26px;
+    position:sticky; top:0; height:100vh;
+  }
+  .brand{display:flex; align-items:center; gap:10px; padding:0 8px;}
+  .brand-mark{
+    width:34px; height:34px; border-radius:9px;
+    background:var(--amber);
+    display:flex; align-items:center; justify-content:center;
+    flex-shrink:0;
+  }
+  .brand-mark svg{width:18px; height:18px;}
+  .brand-text{line-height:1.2;}
+  .brand-text strong{font-family:'Manrope',sans-serif; font-size:16px; font-weight:800; display:block;}
+  .brand-text span{font-size:11.5px; color:#9AA3C0;}
+
+  .nav{display:flex; flex-direction:column; gap:2px;}
+  .nav-item{
+    display:flex; align-items:center; gap:10px;
+    padding:10px 12px;
+    border-radius:8px;
+    font-size:14px; font-weight:500;
+    color:#C7CDE3;
+    cursor:pointer;
+    border:none; background:none; width:100%; text-align:left;
+    font-family:'Inter',sans-serif;
+    transition:background .12s, color .12s;
+  }
+  .nav-item svg{width:17px; height:17px; flex-shrink:0; opacity:0.85;}
+  .nav-item:hover{background:var(--ink-soft); color:#fff;}
+  .nav-item.active{background:var(--amber); color:#2B1D02; font-weight:600;}
+  .nav-item.active svg{opacity:1;}
+
+  .sidebar-foot{
+    margin-top:auto; padding:12px 10px 2px;
+    border-top:1px solid rgba(255,255,255,0.08);
+    font-size:11.5px; color:#7C86A6; line-height:1.5;
+    display:flex; align-items:center; gap:7px;
+  }
+  .dot-live{width:6px; height:6px; border-radius:50%; background:var(--green); flex-shrink:0;}
+
+  /* ===== Main ===== */
+  .main{flex:1; min-width:0; padding:26px 34px 60px; position:relative;}
+  .topbar{
+    display:flex; align-items:baseline; justify-content:space-between;
+    margin-bottom:22px; flex-wrap:wrap; gap:8px;
+  }
+  .topbar h1{font-size:21px; font-weight:800; color:var(--ink);}
+  .topbar p{margin:2px 0 0; font-size:13px; color:var(--text-soft);}
+
+  /* ===== Stat strip ===== */
+  .stats{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:14px;
+    margin-bottom:26px;
+  }
+  .stat-card{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:16px 18px;
+    box-shadow:var(--shadow);
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+  }
+  .stat-card .icon-wrap{
+    width:34px; height:34px; border-radius:9px; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .stat-card .icon-wrap svg{width:17px; height:17px;}
+  .stat-card .label{font-size:12px; color:var(--text-soft); font-weight:500;}
+  .stat-card .value{
+    font-family:'Manrope',sans-serif; font-size:24px; font-weight:800;
+    margin-top:3px; color:var(--ink);
+  }
+  .stat-card.locked .icon-wrap{background:var(--rust-soft);}
+  .stat-card.locked .icon-wrap svg{stroke:var(--rust);}
+  .stat-card.completed .icon-wrap{background:var(--indigo-soft);}
+  .stat-card.completed .icon-wrap svg{stroke:var(--indigo);}
+  .stat-card.active .icon-wrap{background:var(--green-soft);}
+  .stat-card.active .icon-wrap svg{stroke:var(--green);}
+  .stat-card.total .icon-wrap{background:var(--amber-soft);}
+  .stat-card.total .icon-wrap svg{stroke:var(--amber);}
+
+  /* ===== Views ===== */
+  .view{display:none;}
+  .view.active{display:block; animation:fadein .15s ease;}
+  @keyframes fadein{from{opacity:0; transform:translateY(3px);} to{opacity:1; transform:translateY(0);}}
+
+  .card{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+    padding:20px 22px;
+    margin-bottom:20px;
+  }
+  .card-head{display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:16px;}
+  .card h2{font-size:15.5px; font-weight:700; color:var(--ink); margin-bottom:2px;}
+  .card .sub{font-size:12.5px; color:var(--text-soft); margin:0;}
+
+  .form-grid{
+    display:grid;
+    grid-template-columns:repeat(2,1fr);
+    gap:12px 14px;
+  }
+  .field{display:flex; flex-direction:column; gap:5px;}
+  .field label{font-size:12px; font-weight:600; color:var(--text-soft);}
+  input, select{
+    width:100%;
+    padding:9px 11px;
+    border:1px solid var(--border);
+    border-radius:7px;
+    font-size:13.5px;
+    font-family:'Inter',sans-serif;
+    color:var(--text);
+    background:#FCFCFD;
+    transition:border-color .12s, box-shadow .12s;
+  }
+  input:focus, select:focus{
+    outline:none;
+    border-color:var(--ink-soft);
+    background:#fff;
+    box-shadow:0 0 0 3px rgba(29,38,70,0.08);
+  }
+  .form-actions{margin-top:16px; display:flex; align-items:center; gap:12px;}
+
+  button.primary{
+    background:var(--ink);
+    color:#fff;
+    border:none;
+    padding:10px 20px;
+    border-radius:8px;
+    cursor:pointer;
+    font-size:13.5px;
+    font-weight:600;
+    font-family:'Inter',sans-serif;
+    transition:background .12s, transform .08s;
+    display:inline-flex; align-items:center; gap:7px;
+  }
+  button.primary:hover{background:var(--ink-soft);}
+  button.primary:active{transform:scale(0.98);}
+  button.pay{background:var(--amber);}
+  button.pay:hover{background:#A56C09;}
+
+  .btn-sm{
+    border:none; padding:6px 12px; border-radius:6px;
+    font-size:12px; font-weight:600; cursor:pointer; font-family:'Inter',sans-serif; color:#fff;
+    display:inline-flex; align-items:center; gap:5px;
+    transition:background .12s;
+  }
+  .btn-lock{background:var(--rust);}
+  .btn-lock:hover{background:#A02A1E;}
+  .btn-unlock{background:var(--green);}
+  .btn-unlock:hover{background:#157F45;}
+
+  /* ===== Search bar ===== */
+  .search-wrap{position:relative; width:240px;}
+  .search-wrap svg{
+    position:absolute; left:10px; top:50%; transform:translateY(-50%);
+    width:14px; height:14px; stroke:var(--text-faint); pointer-events:none;
+  }
+  .search-wrap input{padding-left:30px; background:var(--paper); border-color:var(--border);}
+
+  /* ===== Table ===== */
+  table{width:100%; border-collapse:collapse; margin-top:6px;}
+  th{
+    text-align:left; padding:9px 10px;
+    font-size:11px; text-transform:uppercase; letter-spacing:0.04em;
+    color:var(--text-faint); font-weight:700;
+    border-bottom:1px solid var(--border);
+  }
+  td{
+    padding:11px 10px;
+    font-size:13px;
+    border-bottom:1px solid var(--border);
+    color:var(--text);
+    vertical-align:middle;
+  }
+  tr:last-child td{border-bottom:none;}
+  tbody tr.clickable{cursor:pointer;}
+  tbody tr.clickable:hover{background:#FAFBFD;}
+  tbody tr:hover{background:#FAFBFD;}
+  .mono{font-family:'JetBrains Mono',monospace; font-size:12.5px; color:var(--text-soft);}
+  .empty-row td, .loading-row td{
+    text-align:center; padding:36px 10px; color:var(--text-faint); font-size:13px;
+  }
+  .spinner{
+    width:16px; height:16px; border-radius:50%;
+    border:2px solid var(--border); border-top-color:var(--ink-soft);
+    display:inline-block; animation:spin .7s linear infinite; margin-right:8px; vertical-align:-3px;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .name-cell{display:flex; align-items:center; gap:9px;}
+  .avatar{
+    width:28px; height:28px; border-radius:50%;
+    background:var(--indigo-soft); color:var(--indigo);
+    display:flex; align-items:center; justify-content:center;
+    font-size:11.5px; font-weight:700; font-family:'Manrope',sans-serif;
+    flex-shrink:0;
+  }
+
+  .badge{
+    display:inline-flex; align-items:center; gap:5px;
+    padding:4px 10px; border-radius:20px;
+    font-size:11.5px; font-weight:700;
+  }
+  .badge.active{background:var(--green-soft); color:var(--green);}
+  .badge.locked{background:var(--rust-soft); color:var(--rust);}
+  .badge.completed{background:var(--indigo-soft); color:var(--indigo);}
+  .badge svg{width:11px; height:11px;}
+
+  .phone-icon{
+    width:26px; height:26px; border-radius:7px;
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  }
+  .phone-icon.active{background:var(--green-soft);}
+  .phone-icon.locked{background:var(--rust-soft);}
+  .phone-icon.completed{background:var(--indigo-soft);}
+  .phone-icon svg{width:14px; height:14px;}
+
+  .amount{font-family:'JetBrains Mono',monospace; font-weight:600; font-size:12.5px;}
+
+  #paymentResult{
+    margin-top:16px; padding:14px 16px; border-radius:8px;
+    background:var(--paper); border:1px solid var(--border);
+    font-size:13.5px; line-height:1.7; display:none;
+  }
+  #paymentResult.show{display:block;}
+  #paymentResult .success-line{
+    color:var(--green); font-weight:700; font-size:14px;
+  }
+
+  /* ===== Toasts ===== */
+  #toastHost{
+    position:fixed; bottom:20px; right:20px; z-index:200;
+    display:flex; flex-direction:column; gap:8px; max-width:320px;
+  }
+  .toast{
+    background:var(--ink); color:#fff;
+    padding:12px 16px; border-radius:8px;
+    font-size:13px; box-shadow:0 6px 24px rgba(18,24,43,0.25);
+    display:flex; align-items:flex-start; gap:9px;
+    animation:toastin .18s ease;
+  }
+  .toast.error{background:var(--rust);}
+  .toast.success{background:var(--green);}
+  .toast svg{width:15px; height:15px; flex-shrink:0; margin-top:1px;}
+  @keyframes toastin{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);}}
+
+  /* ===== Customer detail slide-over ===== */
+  #overlay{
+    position:fixed; inset:0; background:rgba(18,24,43,0.35);
+    display:none; z-index:100;
+  }
+  #overlay.show{display:block;}
+  #detailPanel{
+    position:fixed; top:0; right:0; height:100vh; width:380px; max-width:92vw;
+    background:var(--card); z-index:101;
+    transform:translateX(100%); transition:transform .18s ease;
+    box-shadow:-8px 0 30px rgba(18,24,43,0.12);
+    display:flex; flex-direction:column;
+  }
+  #detailPanel.show{transform:translateX(0);}
+  .detail-head{
+    padding:20px 22px; border-bottom:1px solid var(--border);
+    display:flex; align-items:flex-start; justify-content:space-between; gap:10px;
+  }
+  .detail-head .avatar{width:44px; height:44px; font-size:15px;}
+  .detail-name{font-family:'Manrope',sans-serif; font-weight:800; font-size:16px; color:var(--ink);}
+  .detail-sub{font-size:12px; color:var(--text-soft); margin-top:2px;}
+  .close-btn{
+    border:none; background:var(--paper); width:28px; height:28px; border-radius:7px;
+    cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  }
+  .close-btn svg{width:14px; height:14px; stroke:var(--text-soft);}
+  .detail-body{padding:18px 22px; overflow-y:auto; flex:1;}
+  .detail-row{
+    display:flex; justify-content:space-between; padding:8px 0;
+    border-bottom:1px solid var(--border); font-size:13px;
+  }
+  .detail-row span:first-child{color:var(--text-soft);}
+  .detail-row span:last-child{font-weight:500; text-align:right;}
+  .detail-loans-title{
+    font-size:11px; text-transform:uppercase; letter-spacing:0.04em; color:var(--text-faint);
+    font-weight:700; margin:20px 0 10px;
+  }
+  .loan-mini{
+    border:1px solid var(--border); border-radius:8px; padding:12px 14px; margin-bottom:10px;
+  }
+  .loan-mini-top{display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;}
+  .loan-mini-top strong{font-size:13px;}
+  .loan-mini .amount{font-size:12px;}
+
+  @media (max-width: 860px){
+    .layout{flex-direction:column;}
+    .sidebar{width:100%; flex-direction:row; align-items:center; padding:12px 16px; gap:14px; overflow-x:auto; position:static; height:auto;}
+    .sidebar-foot{display:none;}
+    .nav{flex-direction:row;}
+    .main{padding:20px 16px 40px;}
+    .form-grid{grid-template-columns:1fr;}
+    .stats{grid-template-columns:repeat(2,1fr);}
+    .card-head{flex-direction:column;}
+    .search-wrap{width:100%;}
+    #detailPanel{width:100vw;}
+  }
+</style>
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- ===== SIDEBAR ===== -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#2B1D02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2"/><circle cx="12" cy="18" r="0.5" fill="#2B1D02"/></svg>
+      </div>
+      <div class="brand-text">
+        <strong>Installment Manager</strong>
+        <span>Dashboard</span>
+      </div>
+    </div>
+
+    <nav class="nav">
+      <button class="nav-item active" data-view="overview">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
+        Overview
+      </button>
+      <button class="nav-item" data-view="customers">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.5 3-6 7-6s7 2.5 7 6"/></svg>
+        Customers
+      </button>
+      <button class="nav-item" data-view="loans">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M9 6h6M9 18h.01"/></svg>
+        Loans
+      </button>
+      <button class="nav-item" data-view="payments">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M2 10h20M6 15h4"/></svg>
+        Payments
+      </button>
+    </nav>
+
+    <div class="sidebar-foot">
+      <span class="dot-live"></span> Server: localhost:3000
+    </div>
+  </aside>
+
+  <!-- ===== MAIN ===== -->
+  <main class="main">
+
+    <div class="topbar">
+      <div>
+        <h1 id="pageTitle">Overview</h1>
+        <p id="pageSub">A quick summary of your customers, loans, and locked phones.</p>
+      </div>
+    </div>
+
+    <div class="stats">
+      <div class="stat-card">
+        <div>
+          <div class="label">Total Customers</div>
+          <div class="value" id="statCustomers">0</div>
+        </div>
+        <div class="icon-wrap" style="background:var(--indigo-soft);">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--indigo)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.5 3-6 7-6s7 2.5 7 6"/></svg>
+        </div>
+      </div>
+      <div class="stat-card active">
+        <div>
+          <div class="label">Active Loans</div>
+          <div class="value" id="statActive">0</div>
+        </div>
+        <div class="icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M9 18h6"/></svg></div>
+      </div>
+      <div class="stat-card locked">
+        <div>
+          <div class="label">Locked Phones</div>
+          <div class="value" id="statLocked">0</div>
+        </div>
+        <div class="icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M7 10V7a5 5 0 0 1 10 0v3"/></svg></div>
+      </div>
+      <div class="stat-card completed">
+        <div>
+          <div class="label">Completed Loans</div>
+          <div class="value" id="statCompleted">0</div>
+        </div>
+        <div class="icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4L19 6"/></svg></div>
+      </div>
+    </div>
+
+    <!-- ===== OVERVIEW VIEW ===== -->
+    <section class="view active" data-view="overview">
+      <div class="card">
+        <h2>Welcome</h2>
+        <p class="sub">Use the sidebar to go to Customers, Loans, or Payments. Click any customer row to see their full loan history.</p>
+      </div>
+    </section>
+
+    <!-- ===== CUSTOMERS VIEW ===== -->
+    <section class="view" data-view="customers">
+      <div class="card">
+        <h2>Add New Customer</h2>
+        <p class="sub">Enter the details for a new customer.</p>
+        <div class="form-grid" style="margin-top:16px;">
+          <div class="field"><label>Customer name</label><input type="text" id="naam" placeholder="Customer name"></div>
+          <div class="field"><label>CNIC</label><input type="text" id="cnic" placeholder="CNIC"></div>
+          <div class="field"><label>Phone number</label><input type="text" id="phone_number" placeholder="Phone number"></div>
+          <div class="field"><label>Address</label><input type="text" id="pata" placeholder="Address"></div>
+          <div class="field" style="grid-column:1 / -1;"><label>Guarantor detail</label><input type="text" id="guarantor" placeholder="Guarantor detail"></div>
+        </div>
+        <div class="form-actions">
+          <button class="primary" onclick="addCustomer()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            Add Customer
+          </button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <h2>All Customers</h2>
+            <p class="sub">Every customer registered so far. Click a row for details.</p>
+          </div>
+          <div class="search-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+            <input type="text" id="customerSearch" placeholder="Search by name, CNIC or phone" oninput="renderCustomers()">
+          </div>
+        </div>
+        <table>
+          <thead>
+            <tr><th>ID</th><th>Name</th><th>CNIC</th><th>Phone</th><th>Address</th></tr>
+          </thead>
+          <tbody id="customerList"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ===== LOANS VIEW ===== -->
+    <section class="view" data-view="loans">
+      <div class="card">
+        <h2>Add New Loan</h2>
+        <p class="sub">Select a customer and enter the phone's installment details.</p>
+        <div class="form-grid" style="margin-top:16px;">
+          <div class="field" style="grid-column:1 / -1;">
+            <label>Customer</label>
+            <select id="loan_customer"><option value="">-- Select customer --</option></select>
+          </div>
+          <div class="field"><label>Phone model</label><input type="text" id="phone_ka_naam" placeholder="e.g. Infinix Hot 40"></div>
+          <div class="field"><label>IMEI number</label><input type="text" id="imei" placeholder="IMEI number"></div>
+          <div class="field"><label>Total price</label><input type="number" id="total_qeemat" placeholder="e.g. 50000"></div>
+          <div class="field"><label>Down payment</label><input type="number" id="down_payment" placeholder="e.g. 10000"></div>
+          <div class="field"><label>Installment term (months)</label><input type="number" id="kitni_installment" placeholder="e.g. 6"></div>
+        </div>
+        <div class="form-actions">
+          <button class="primary" onclick="addLoan()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            Add Loan
+          </button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <h2>All Loans</h2>
+            <p class="sub">Status of every loan, with lock and unlock controls.</p>
+          </div>
+          <div class="search-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+            <input type="text" id="loanSearch" placeholder="Search by customer or phone" oninput="renderLoans()">
+          </div>
+        </div>
+        <table>
+          <thead>
+            <tr><th></th><th>ID</th><th>Customer</th><th>Phone</th><th>Total</th><th>Down</th><th>Per month</th><th>Months</th><th>Due Date</th><th>Status</th><th>Action</th></tr>
+          </thead>
+          <tbody id="loanList"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ===== PAYMENTS VIEW ===== -->
+    <section class="view" data-view="payments">
+      <div class="card">
+        <h2>Add Payment</h2>
+        <p class="sub">Select a loan and enter the amount received.</p>
+        <div class="form-grid" style="margin-top:16px;">
+          <div class="field" style="grid-column:1 / -1;">
+            <label>Loan</label>
+            <select id="payment_loan"><option value="">-- Select loan --</option></select>
+          </div>
+          <div class="field"><label>Amount received</label><input type="number" id="kitna_diya" placeholder="e.g. 5000"></div>
+        </div>
+        <div class="form-actions">
+          <button class="primary pay" onclick="addPayment()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            Add Payment
+          </button>
+        </div>
+        <div id="paymentResult"></div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ===== Customer detail slide-over ===== -->
+<div id="overlay" onclick="closeDetail()"></div>
+<div id="detailPanel">
+  <div class="detail-head">
+    <div style="display:flex; gap:12px; align-items:center;">
+      <div class="avatar" id="detailAvatar">?</div>
+      <div>
+        <div class="detail-name" id="detailName">-</div>
+        <div class="detail-sub" id="detailPhone">-</div>
+      </div>
+    </div>
+    <button class="close-btn" onclick="closeDetail()">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+    </button>
+  </div>
+  <div class="detail-body">
+    <div class="detail-row"><span>CNIC</span><span id="detailCnic">-</span></div>
+    <div class="detail-row"><span>Address</span><span id="detailAddress">-</span></div>
+    <div class="detail-row"><span>Guarantor</span><span id="detailGuarantor">-</span></div>
+    <div class="detail-loans-title">Loans</div>
+    <div id="detailLoans"></div>
+  </div>
+</div>
+
+<div id="toastHost"></div>
+
+<script>
+  // server address
+  const SERVER = 'http://localhost:3000';
+
+  let allCustomers = [];
+  let allLoans = [];
+
+  // ===== icons for phone/lock badges =====
+  const ICONS = {
+    active: '<svg viewBox="0 0 24 24" fill="none" stroke="#1D9A56" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M9 18h6"/></svg>',
+    locked: '<svg viewBox="0 0 24 24" fill="none" stroke="#C23B2C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2"/><rect x="9" y="14" width="6" height="5" rx="1"/><path d="M10 14v-1.5a2 2 0 0 1 4 0V14"/></svg>',
+    completed: '<svg viewBox="0 0 24 24" fill="none" stroke="#4C5FD5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M9.5 12l1.8 1.8L14.5 10"/></svg>'
+  };
+  const BADGE_ICON = {
+    active: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>',
+    locked: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M7 10V7a5 5 0 0 1 10 0v3"/></svg>',
+    completed: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4L19 6"/></svg>'
+  };
+  const STATUS_LABEL = { active: 'Active', locked: 'Locked', completed: 'Completed' };
+
+  function fmt(n){
+    const num = Number(n) || 0;
+    return 'Rs ' + Math.round(num).toLocaleString('en-PK');
+  }
+  function statusKey(s){
+    if (s === 'locked') return 'locked';
+    if (s === 'completed') return 'completed';
+    return 'active';
+  }
+  function initials(name){
+    if (!name) return '?';
+    const parts = name.trim().split(/\s+/);
+    return ((parts[0]?.[0] || '') + (parts[1]?.[0] || '')).toUpperCase() || name[0].toUpperCase();
+  }
+
+  // ===== toast notifications (replaces alert()) =====
+  function toast(message, type = 'default') {
+    const host = document.getElementById('toastHost');
+    const el = document.createElement('div');
+    el.className = 'toast' + (type === 'error' ? ' error' : type === 'success' ? ' success' : '');
+    const icon = type === 'error'
+      ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>'
+      : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12l4 4L19 6"/></svg>';
+    el.innerHTML = icon + '<span>' + message + '</span>';
+    host.appendChild(el);
+    setTimeout(() => el.remove(), 4000);
+  }
+
+  // ===== nav switching =====
+  const TITLES = {
+    overview: ['Overview', 'A quick summary of your customers, loans, and locked phones.'],
+    customers: ['Customers', 'Add new customers and view the current list.'],
+    loans: ['Loans', 'Create installment loans and control phone lock/unlock.'],
+    payments: ['Payments', 'Record payments and check remaining balances.']
+  };
+  document.querySelectorAll('.nav-item').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const view = btn.dataset.view;
+      document.querySelectorAll('.nav-item').forEach(b => b.classList.toggle('active', b === btn));
+      document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.dataset.view === view));
+      document.getElementById('pageTitle').textContent = TITLES[view][0];
+      document.getElementById('pageSub').textContent = TITLES[view][1];
+    });
+  });
+
+  // ===== add new customer =====
+  async function addCustomer() {
+    const naam = document.getElementById('naam').value;
+    const cnic = document.getElementById('cnic').value;
+    const phone_number = document.getElementById('phone_number').value;
+    const pata = document.getElementById('pata').value;
+    const guarantor = document.getElementById('guarantor').value;
+
+    if (!naam) {
+      toast('Customer name is required.', 'error');
+      return;
+    }
+
+    const response = await fetch(SERVER + '/customers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ naam, cnic, phone_number, pata, guarantor })
+    });
+
+    const result = await response.json();
+    toast(result.message, 'success');
+
+    document.getElementById('naam').value = '';
+    document.getElementById('cnic').value = '';
+    document.getElementById('phone_number').value = '';
+    document.getElementById('pata').value = '';
+    document.getElementById('guarantor').value = '';
+
+    loadCustomers();
+    loadCustomerDropdown();
+  }
+
+  // ===== load + render customers =====
+  async function loadCustomers() {
+    const list = document.getElementById('customerList');
+    list.innerHTML = '<tr class="loading-row"><td colspan="5"><span class="spinner"></span>Loading customers...</td></tr>';
+
+    const response = await fetch(SERVER + '/customers');
+    allCustomers = await response.json();
+
+    document.getElementById('statCustomers').textContent = allCustomers.length;
+    renderCustomers();
+  }
+
+  function renderCustomers() {
+    const list = document.getElementById('customerList');
+    const q = (document.getElementById('customerSearch')?.value || '').toLowerCase().trim();
+
+    const filtered = allCustomers.filter(c => {
+      if (!q) return true;
+      return (c.naam || '').toLowerCase().includes(q)
+        || (c.cnic || '').toLowerCase().includes(q)
+        || (c.phone_number || '').toLowerCase().includes(q);
+    });
+
+    list.innerHTML = '';
+
+    if (allCustomers.length === 0) {
+      list.innerHTML = '<tr class="empty-row"><td colspan="5">No customers yet. Add your first customer using the form above.</td></tr>';
+      return;
+    }
+    if (filtered.length === 0) {
+      list.innerHTML = '<tr class="empty-row"><td colspan="5">No customers match your search.</td></tr>';
+      return;
+    }
+
+    filtered.forEach(c => {
+      const row = document.createElement('tr');
+      row.className = 'clickable';
+      row.onclick = () => openDetail(c.id);
+      row.innerHTML = `
+        <td class="mono">#${c.id}</td>
+        <td>
+          <div class="name-cell">
+            <div class="avatar">${initials(c.naam)}</div>
+            <span>${c.naam}</span>
+          </div>
+        </td>
+        <td class="mono">${c.cnic || '-'}</td>
+        <td class="mono">${c.phone_number || '-'}</td>
+        <td>${c.pata || '-'}</td>
+      `;
+      list.appendChild(row);
+    });
+  }
+
+  // ===== customer detail slide-over =====
+  function openDetail(customerId) {
+    const c = allCustomers.find(x => x.id === customerId);
+    if (!c) return;
+
+    document.getElementById('detailAvatar').textContent = initials(c.naam);
+    document.getElementById('detailName').textContent = c.naam;
+    document.getElementById('detailPhone').textContent = c.phone_number || 'No phone on file';
+    document.getElementById('detailCnic').textContent = c.cnic || '-';
+    document.getElementById('detailAddress').textContent = c.pata || '-';
+    document.getElementById('detailGuarantor').textContent = c.guarantor || '-';
+
+    const loansForCustomer = allLoans.filter(l =>
+      (l.customer_id !== undefined ? l.customer_id === customerId : l.customer_naam === c.naam)
+    );
+
+    const loansBox = document.getElementById('detailLoans');
+    if (loansForCustomer.length === 0) {
+      loansBox.innerHTML = '<p style="font-size:13px; color:var(--text-faint);">No loans for this customer yet.</p>';
+    } else {
+      loansBox.innerHTML = loansForCustomer.map(l => {
+        const key = statusKey(l.status);
+        return `
+          <div class="loan-mini">
+            <div class="loan-mini-top">
+              <strong>${l.phone_ka_naam || 'Loan #' + l.id}</strong>
+              <span class="badge ${key}">${BADGE_ICON[key]}${STATUS_LABEL[key]}</span>
+            </div>
+            <div class="detail-row"><span>Total price</span><span class="amount">${fmt(l.total_qeemat)}</span></div>
+            <div class="detail-row"><span>Down payment</span><span class="amount">${fmt(l.down_payment)}</span></div>
+            <div class="detail-row"><span>Per month</span><span class="amount">${fmt(l.per_month)}</span></div>
+            <div class="detail-row" style="border-bottom:none;"><span>Term</span><span>${l.kitni_installment} months</span></div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    document.getElementById('overlay').classList.add('show');
+    document.getElementById('detailPanel').classList.add('show');
+  }
+
+  function closeDetail() {
+    document.getElementById('overlay').classList.remove('show');
+    document.getElementById('detailPanel').classList.remove('show');
+  }
+
+  // ===== add new loan =====
+  async function addLoan() {
+    const customer_id = document.getElementById('loan_customer').value;
+    const phone_ka_naam = document.getElementById('phone_ka_naam').value;
+    const imei = document.getElementById('imei').value;
+    const total_qeemat = document.getElementById('total_qeemat').value;
+    const down_payment = document.getElementById('down_payment').value;
+    const kitni_installment = document.getElementById('kitni_installment').value;
+
+    if (!customer_id || !total_qeemat || !kitni_installment) {
+      toast('Customer, total price and installment term are required.', 'error');
+      return;
+    }
+
+    const response = await fetch(SERVER + '/loans', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        customer_id, phone_ka_naam, imei,
+        total_qeemat, down_payment, kitni_installment
+      })
+    });
+
+    const result = await response.json();
+    toast(result.message + ' Per month: ' + fmt(result.per_month), 'success');
+
+    document.getElementById('phone_ka_naam').value = '';
+    document.getElementById('imei').value = '';
+    document.getElementById('total_qeemat').value = '';
+    document.getElementById('down_payment').value = '';
+    document.getElementById('kitni_installment').value = '';
+
+    loadLoans();
+    loadPaymentDropdown();
+  }
+
+  // ===== load + render loans =====
+  async function loadLoans() {
+    const list = document.getElementById('loanList');
+    list.innerHTML = '<tr class="loading-row"><td colspan="10"><span class="spinner"></span>Loading loans...</td></tr>';
+
+    const response = await fetch(SERVER + '/loans');
+    allLoans = await response.json();
+
+    let activeCount = 0, lockedCount = 0, completedCount = 0;
+    allLoans.forEach(l => {
+      const key = statusKey(l.status);
+      if (key === 'active') activeCount++;
+      if (key === 'locked') lockedCount++;
+      if (key === 'completed') completedCount++;
+    });
+    document.getElementById('statActive').textContent = activeCount;
+    document.getElementById('statLocked').textContent = lockedCount;
+    document.getElementById('statCompleted').textContent = completedCount;
+
+    renderLoans();
+  }
+
+  function renderLoans() {
+    const list = document.getElementById('loanList');
+    const q = (document.getElementById('loanSearch')?.value || '').toLowerCase().trim();
+
+    const filtered = allLoans.filter(l => {
+      if (!q) return true;
+      return (l.customer_naam || '').toLowerCase().includes(q)
+        || (l.phone_ka_naam || '').toLowerCase().includes(q);
+    });
+
+    list.innerHTML = '';
+
+    if (allLoans.length === 0) {
+      list.innerHTML = '<tr class="empty-row"><td colspan="10">No loans yet. Add your first loan using the form above.</td></tr>';
+      return;
+    }
+    if (filtered.length === 0) {
+      list.innerHTML = '<tr class="empty-row"><td colspan="10">No loans match your search.</td></tr>';
+      return;
+    }
+
+    filtered.forEach(l => {
+      const key = statusKey(l.status);
+      const actionButton = key === 'locked'
+        ? `<button class="btn-sm btn-unlock" onclick="unlockPhone(${l.id})">Unlock</button>`
+        : key === 'completed'
+          ? ''
+          : `<button class="btn-sm btn-lock" onclick="lockPhone(${l.id})">Lock</button>`;
+// due date dikhao (agar set hai to), aur set karne ka button
+      const dueDateText = l.next_due_date 
+        ? `<span class="mono" style="font-size:11.5px;">${l.next_due_date.substring(0,16)}</span>` 
+        : `<span style="color:var(--text-faint); font-size:12px;">Not set</span>`;
+
+      const row = `
+        <tr>
+          <td><div class="phone-icon ${key}">${ICONS[key]}</div></td>
+          <td class="mono">#${l.id}</td>
+          <td>${l.customer_naam}</td>
+          <td>${l.phone_ka_naam || '-'}</td>
+          <td class="amount">${fmt(l.total_qeemat)}</td>
+          <td class="amount">${fmt(l.down_payment)}</td>
+          <td class="amount">${fmt(l.per_month)}</td>
+          <td class="mono">${l.kitni_installment}</td>
+          <td>${dueDateText}<br><button class="btn-sm" style="background:var(--indigo); margin-top:4px; padding:3px 8px; font-size:11px;" onclick="setDueDate(${l.id})">Set Date</button></td>
+          <td><span class="badge ${key}">${BADGE_ICON[key]}${STATUS_LABEL[key]}</span></td>
+          <td>${actionButton}</td>
+        </tr>
+      `;
+      list.innerHTML += row;
+    });
+  }
+
+  // ===== fill customer dropdown =====
+  async function loadCustomerDropdown() {
+    const response = await fetch(SERVER + '/customers');
+    const customers = await response.json();
+
+    const dropdown = document.getElementById('loan_customer');
+    dropdown.innerHTML = '<option value="">-- Select customer --</option>';
+
+    customers.forEach(c => {
+      dropdown.innerHTML += `<option value="${c.id}">${c.naam}</option>`;
+    });
+  }
+
+  // ===== lock phone =====
+  async function lockPhone(loanId) {
+    const response = await fetch(SERVER + '/loans/' + loanId + '/lock', { method: 'POST' });
+    const result = await response.json();
+    toast(result.message);
+    loadLoans();
+  }
+
+  // ===== unlock phone =====
+  async function unlockPhone(loanId) {
+    const response = await fetch(SERVER + '/loans/' + loanId + '/unlock', { method: 'POST' });
+    const result = await response.json();
+    toast(result.message, 'success');
+    loadLoans();
+  }
+// ===== set due date (auto-lock ke liye) =====
+  async function setDueDate(loanId) {
+    // user se tareekh poocho (asaan format)
+    const input = prompt(
+      'Due date daalein (format: YYYY-MM-DD HH:MM)\n\n' +
+      'Misaal: 2026-08-10 14:30\n\n' +
+      'TEST ke liye: abhi se thodi der pehle ki date daalein taake foran lock ho.',
+      new Date(Date.now() + 5*60000).toISOString().replace('T',' ').substring(0,16)
+    );
+
+    if (!input) return; // cancel kiya
+
+    // format theek karo (seconds add karo)
+    const dueDate = input.length === 16 ? input + ':00' : input;
+
+    const response = await fetch(SERVER + '/loans/' + loanId + '/set-due-date', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ due_date: dueDate })
+    });
+
+    const result = await response.json();
+    if (result.error) {
+      toast(result.error, 'error');
+    } else {
+      toast('Due date set: ' + dueDate, 'success');
+      loadLoans();
+    }
+  }
+  // ===== add payment (with auto-unlock) =====
+  async function addPayment() {
+    const loan_id = document.getElementById('payment_loan').value;
+    const kitna_diya = document.getElementById('kitna_diya').value;
+
+    if (!loan_id || !kitna_diya) {
+      toast('Select a loan and enter an amount.', 'error');
+      return;
+    }
+
+    const response = await fetch(SERVER + '/payments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ loan_id, kitna_diya })
+    });
+
+    const result = await response.json();
+
+    let msg = `<b>${result.message}</b><br>`;
+    msg += `Paid so far: ${fmt(result.ab_tak_diya)}<br>`;
+    msg += `Remaining: ${fmt(result.baqi)}`;
+
+    if (result.auto_unlock_hua) {
+      msg += `<br><br><span class="success-line">Full payment received. Phone auto-unlocked and loan completed.</span>`;
+    }
+
+    const box = document.getElementById('paymentResult');
+    box.innerHTML = msg;
+    box.classList.add('show');
+
+    document.getElementById('kitna_diya').value = '';
+
+    loadLoans();
+    loadPaymentDropdown();
+  }
+
+  // ===== fill loan dropdown (for payments) =====
+  async function loadPaymentDropdown() {
+    const response = await fetch(SERVER + '/loans');
+    const loans = await response.json();
+
+    const dropdown = document.getElementById('payment_loan');
+    dropdown.innerHTML = '<option value="">-- Select loan --</option>';
+
+    loans.forEach(l => {
+      if (l.status !== 'completed') {
+        dropdown.innerHTML += `<option value="${l.id}">Loan #${l.id} - ${l.customer_naam} (${l.phone_ka_naam || 'phone'})</option>`;
+      }
+    });
+  }
+
+  // load everything when page opens
+  loadCustomers();
+  loadCustomerDropdown();
+  loadLoans();
+  loadPaymentDropdown();
+</script>
+
+</body>
+</html>
