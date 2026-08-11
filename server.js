@@ -6,7 +6,14 @@ const db = require('./database');
 // ===== FIREBASE (FCM push) =====
 const { initializeApp, cert } = require('firebase-admin/app');
 const { getMessaging } = require('firebase-admin/messaging');
-const serviceAccount = require('./firebase-key.json');
+
+// firebase key: environment variable se (hosting) ya file se (local)
+let serviceAccount;
+if (process.env.FIREBASE_KEY) {
+  serviceAccount = JSON.parse(process.env.FIREBASE_KEY);
+} else {
+  serviceAccount = require('./firebase-key.json');
+}
 
 initializeApp({
   credential: cert(serviceAccount)
