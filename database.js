@@ -2,7 +2,8 @@
 const Database = require('better-sqlite3');
 
 // database file bana/khol rahe hain (ye file khud ban jayegi)
-const db = new Database('installment.db');
+const dbPath = process.env.RAILWAY_ENVIRONMENT ? '/app/data/installment.db' : 'installment.db';
+const db = new Database(dbPath);
 
 // ===== TABLE 1: CUSTOMERS (customers ki maloomat) =====
 db.exec(`
