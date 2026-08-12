@@ -88,6 +88,24 @@ app.get('/loans', (req, res) => {
 });
 
 
+// ===== ROUTE 5B: IMEI SE LOAN DHOONDNA (QR provisioning ke liye) =====
+app.get('/loans/by-imei/:imei', (req, res) => {
+  const imei = req.params.imei;
+  const loan = db.prepare(`
+    SELECT loans.*, customers.naam AS customer_naam 
+    FROM loans 
+    JOIN customers ON loans.customer_id = customers.id 
+    WHERE loans.imei = ?
+  `).get(imei);
+
+  if (!loan) {
+    return res.status(404).json({ error: 'Is IMEI ka koi loan nahi mila' });
+  }
+
+  res.json(loan);
+});
+
+
 // ===== ROUTE 6: PHONE LOCK =====
 app.post('/loans/:id/lock', (req, res) => {
   const loanId = req.params.id;
