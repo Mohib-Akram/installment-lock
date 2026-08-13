@@ -2,6 +2,12 @@
 const express = require('express');
 const cors = require('cors');
 const db = require('./database');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+
+// ===== JWT SECRET (login token banane/verify karne ke liye) =====
+// Production mein ye Railway environment variable se aana chahiye
+const JWT_SECRET = process.env.JWT_SECRET || 'qist-manager-secret-key-change-this';
 
 // ===== FIREBASE (FCM push) =====
 const { initializeApp, cert } = require('firebase-admin/app');
@@ -47,6 +53,75 @@ const PORT = 3000;
 // ===== ROUTE 1: Test =====
 app.get('/', (req, res) => {
   res.send('Installment Software ka server chal raha hai!');
+});
+
+// ===== ROUTE: SHOPKEEPER LOGIN =====
+app.post('/shopkeeper/login', (req, res) => {
+  const { username, password } = req.body;
+
+  if (!username || !password) {
+    return res.status(400).json({ error: 'Username aur password zaroori hain' });
+  }
+
+  const shopkeeper = db.prepare('SELECT * FROM shopkeepers WHERE username = ?').get(username);
+
+  if (!shopkeeper) {
+    return res.status(401).json({ error: 'Username ya password ghalat hai' });
+  }
+
+  if (shopkeeper.status === 'blocked') {
+    return res.status(403).json({ error: 'Aapka account block hai. Admin se raabta karein.' });
+  }
+
+  const passwordSahiHai = bcrypt.compareSync(password, shopkeeper.password_hash);
+
+  if (!passwordSahiHai) {
+    return res.status(401).json({ error: 'Username ya password ghalat hai' });
+  }
+
+  // token banao (7 din tak valid rahega)
+  const token = jwt.sign(
+    { shopkeeper_id: shopkeeper.id, username: shopkeeper.username },
+    JWT_SECRET,
+    { expiresIn: '7d' }
+  );
+
+  res.json({
+    message: 'Login kamiyab!',
+    token: token,
+    shopkeeper: {
+      id: shopkeeper.id,
+      naam: shopkeeper.naam,
+      shop_naam: shopkeeper.shop_naam,
+      username: shopkeeper.username
+    }
+  });
+});
+
+
+// ===== MIDDLEWARE: Token check karna (Phase 3 mein use hoga) =====
+function verifyShopkeeperToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1]; // "Bearer <token>"
+
+  if (!token) {
+    return res.status(401).json({ error: 'Login zaroori hai' });
+  }
+
+  jwt.verify(token, JWT_SECRET, (err, decoded) => {
+    if (err) {
+      return res.status(403).json({ error: 'Token invalid ya expire ho gaya, dobara login karein' });
+    }
+    req.shopkeeper_id = decoded.shopkeeper_id;
+    next();
+  });
+}
+
+
+// ===== ROUTE: APNA PROFILE DEKHNA (token se test karne ke liye) =====
+app.get('/shopkeeper/me', verifyShopkeeperToken, (req, res) => {
+  const shopkeeper = db.prepare('SELECT id, naam, shop_naam, email, username, status FROM shopkeepers WHERE id = ?').get(req.shopkeeper_id);
+  res.json(shopkeeper);
 });
 
 
