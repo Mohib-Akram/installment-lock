@@ -1,4 +1,5 @@
 // ===== ZAROORI TOOLS =====
+const path = require('path');
 const express = require('express');
 const cors = require('cors');
 const db = require('./database');
@@ -60,7 +61,12 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-const PORT = 3000;
+
+// =========================================================
+// RAILWAY PORT
+// =========================================================
+
+const PORT = process.env.PORT || 3000;
 
 
 // =========================================================
@@ -141,6 +147,32 @@ function verifyAdminToken(req, res, next) {
 
 app.get('/', (req, res) => {
   res.send('Installment Software ka server chal raha hai!');
+});
+
+
+// =========================================================
+// WEB PORTAL PAGES
+// =========================================================
+// Admin aur Shopkeeper dashboard ab Railway se directly open
+// ho sakte hain kisi bhi device par.
+
+app.get('/admin.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'admin.html'));
+});
+
+app.get('/dashboard.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'dashboard.html'));
+});
+
+
+// Friendly short URLs
+
+app.get('/admin', (req, res) => {
+  res.sendFile(path.join(__dirname, 'admin.html'));
+});
+
+app.get('/dashboard', (req, res) => {
+  res.sendFile(path.join(__dirname, 'dashboard.html'));
 });
 
 
@@ -1170,10 +1202,15 @@ console.log(
 app.listen(PORT, '0.0.0.0', () => {
 
   console.log(
-    `Server chal raha hai: http://localhost:${PORT}`
+    `Server chal raha hai on port ${PORT}`
   );
 
   console.log(
-    `Phone se: http://192.168.18.14:${PORT}`
+    `Admin Portal: /admin.html`
   );
+
+  console.log(
+    `Shopkeeper Dashboard: /dashboard.html`
+  );
+
 });
