@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Installment Manager — Admin Portal</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;background:#f5f7fb;color:#172033}
+button,input{font:inherit}
+.hidden{display:none!important}
+
+#loginPage{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:linear-gradient(135deg,#10172a,#1d2945)}
+.login-card{width:100%;max-width:420px;background:#fff;border-radius:20px;padding:36px;box-shadow:0 25px 70px rgba(0,0,0,.25)}
+.logo{width:52px;height:52px;border-radius:14px;background:#d99000;color:#111;display:grid;place-items:center;font-size:25px;font-weight:800;margin-bottom:22px}
+.login-card h1{margin:0 0 8px;font-size:28px}.login-card p{margin:0 0 28px;color:#667085}
+.field{margin-bottom:16px}.field label{display:block;font-size:13px;font-weight:700;margin-bottom:7px;color:#344054}
+.field input{width:100%;padding:13px 14px;border:1px solid #d0d5dd;border-radius:10px;outline:none}
+.field input:focus{border-color:#d99000;box-shadow:0 0 0 3px rgba(217,144,0,.12)}
+.primary{width:100%;border:0;border-radius:10px;padding:13px;background:#d99000;color:#111;font-weight:800;cursor:pointer}
+.error{margin-top:14px;color:#b42318;background:#fef3f2;padding:10px 12px;border-radius:9px;font-size:13px}
+
+#app{min-height:100vh;display:flex}
+.sidebar{width:250px;background:#10172a;color:#fff;padding:24px 18px;position:fixed;inset:0 auto 0 0}
+.brand{font-size:21px;font-weight:800;margin:5px 10px 5px}.brand-sub{color:#98a2b3;font-size:13px;margin:0 10px 34px}
+.nav{padding:12px 14px;border-radius:10px;background:#d99000;color:#111;font-weight:800}
+.bottom{position:absolute;left:18px;right:18px;bottom:22px;border-top:1px solid #29334b;padding-top:18px}
+.admin-name{font-size:13px;color:#98a2b3;margin-bottom:12px}.logout{width:100%;border:0;background:#202a40;color:#fff;padding:11px;border-radius:9px;cursor:pointer}
+main{margin-left:250px;width:calc(100% - 250px);padding:34px}
+.topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:28px}
+.topbar h1{margin:0;font-size:30px}.topbar p{margin:6px 0 0;color:#667085}
+.add-btn{border:0;background:#d99000;color:#111;font-weight:800;padding:12px 18px;border-radius:10px;cursor:pointer}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-bottom:24px}
+.stat{background:#fff;border:1px solid #eaecf0;border-radius:15px;padding:20px;box-shadow:0 4px 15px rgba(16,24,40,.04)}
+.stat span{color:#667085;font-size:14px}.stat strong{display:block;font-size:30px;margin-top:7px}
+.card{background:#fff;border:1px solid #eaecf0;border-radius:15px;overflow:hidden;box-shadow:0 4px 15px rgba(16,24,40,.04)}
+.card-head{padding:18px 20px;border-bottom:1px solid #eaecf0;font-weight:800}
+.table-wrap{overflow:auto}
+table{width:100%;border-collapse:collapse;min-width:760px}
+th,td{text-align:left;padding:15px 18px;border-bottom:1px solid #f0f2f5;font-size:14px}
+th{font-size:12px;text-transform:uppercase;color:#667085;background:#fafafa}
+.badge{display:inline-block;padding:5px 9px;border-radius:999px;font-size:12px;font-weight:800}
+.active{background:#ecfdf3;color:#027a48}.blocked{background:#fef3f2;color:#b42318}
+.action{border:0;border-radius:8px;padding:8px 11px;cursor:pointer;font-weight:700}
+.block{background:#fee4e2;color:#b42318}.unblock{background:#dcfae8;color:#027a48}
+.empty{text-align:center;color:#667085;padding:40px}
+
+.modal-backdrop{position:fixed;inset:0;background:rgba(16,24,40,.55);display:grid;place-items:center;padding:20px;z-index:10}
+.modal{width:100%;max-width:520px;background:#fff;border-radius:18px;padding:26px}
+.modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}.modal h2{margin:0}
+.close{border:0;background:#f2f4f7;width:34px;height:34px;border-radius:50%;cursor:pointer}
+.modal .primary{margin-top:5px}
+.toast{position:fixed;right:25px;bottom:25px;background:#027a48;color:#fff;padding:13px 17px;border-radius:10px;box-shadow:0 12px 30px rgba(0,0,0,.2);z-index:20}
+.toast.bad{background:#b42318}
+
+@media(max-width:800px){
+.sidebar{width:210px}main{margin-left:210px;width:calc(100% - 210px);padding:22px}.stats{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<section id="loginPage">
+  <div class="login-card">
+    <div class="logo">Q</div>
+    <h1>Admin Portal</h1>
+    <p>Manage your installment shopkeepers.</p>
+    <form id="loginForm">
+      <div class="field">
+        <label>Username</label>
+        <input id="username" autocomplete="username" required>
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input id="password" type="password" autocomplete="current-password" required>
+      </div>
+      <button class="primary" type="submit">Login</button>
+      <div id="loginError" class="error hidden"></div>
+    </form>
+  </div>
+</section>
+
+<section id="app" class="hidden">
+  <aside class="sidebar">
+    <div class="brand">Installment Manager</div>
+    <div class="brand-sub">Super Admin Portal</div>
+    <div class="nav">Shopkeepers</div>
+    <div class="bottom">
+      <div class="admin-name" id="adminName">Admin</div>
+      <button class="logout" id="logoutBtn">Logout</button>
+    </div>
+  </aside>
+
+  <main>
+    <div class="topbar">
+      <div>
+        <h1>Shopkeepers</h1>
+        <p>Add, monitor, block and unblock shopkeeper accounts.</p>
+      </div>
+      <button class="add-btn" id="openAdd">+ Add Shopkeeper</button>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><span>Total Shopkeepers</span><strong id="total">0</strong></div>
+      <div class="stat"><span>Active</span><strong id="active">0</strong></div>
+      <div class="stat"><span>Blocked</span><strong id="blocked">0</strong></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">All Shopkeepers</div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th><th>Shop</th><th>Username</th><th>Customers</th><th>Loans</th><th>Status</th><th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="shopkeepersBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</section>
+
+<div id="modalBackdrop" class="modal-backdrop hidden">
+  <div class="modal">
+    <div class="modal-head">
+      <h2>Add Shopkeeper</h2>
+      <button class="close" id="closeModal">×</button>
+    </div>
+    <form id="addForm">
+      <div class="field"><label>Full Name *</label><input id="newName" required></div>
+      <div class="field"><label>Shop Name</label><input id="newShop"></div>
+      <div class="field"><label>Email</label><input id="newEmail" type="email"></div>
+      <div class="field"><label>Username *</label><input id="newUsername" required></div>
+      <div class="field"><label>Password *</label><input id="newPassword" type="password" minlength="6" required></div>
+      <button class="primary" type="submit">Create Shopkeeper</button>
+      <div id="addError" class="error hidden"></div>
+    </form>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<script>
+const API_BASE = location.protocol === 'file:' ? 'http://localhost:3000' : location.origin;
+const TOKEN_KEY = 'admin_token';
+
+const $ = id => document.getElementById(id);
+const token = () => localStorage.getItem(TOKEN_KEY);
+
+function showToast(message, bad=false){
+  const el=$('toast');
+  el.textContent=message;
+  el.className='toast' + (bad?' bad':'');
+  setTimeout(()=>el.classList.add('hidden'),3000);
+}
+
+function showApp(admin){
+  $('loginPage').classList.add('hidden');
+  $('app').classList.remove('hidden');
+  $('adminName').textContent = admin?.naam || admin?.username || 'Admin';
+  loadShopkeepers();
+}
+
+function showLogin(){
+  $('app').classList.add('hidden');
+  $('loginPage').classList.remove('hidden');
+}
+
+async function api(path, options={}){
+  const headers = {'Content-Type':'application/json', ...(options.headers||{})};
+  const t=token();
+  if(t) headers.Authorization='Bearer '+t;
+
+  const response=await fetch(API_BASE+path,{...options,headers});
+  let data={};
+  try{data=await response.json()}catch{}
+  if(response.status===401 || response.status===403){
+    localStorage.removeItem(TOKEN_KEY);
+    showLogin();
+    throw new Error(data.error || 'Session expired');
+  }
+  if(!response.ok) throw new Error(data.error || 'Request failed');
+  return data;
+}
+
+async function login(username,password){
+  const data=await api('/admin/login',{
+    method:'POST',
+    body:JSON.stringify({username,password})
+  });
+  localStorage.setItem(TOKEN_KEY,data.token);
+  showApp(data.admin);
+}
+
+async function loadShopkeepers(){
+  try{
+    const list=await api('/admin/shopkeepers');
+    $('total').textContent=list.length;
+    $('active').textContent=list.filter(x=>x.status==='active').length;
+    $('blocked').textContent=list.filter(x=>x.status==='blocked').length;
+
+    const body=$('shopkeepersBody');
+    if(!list.length){
+      body.innerHTML='<tr><td colspan="7" class="empty">No shopkeepers found.</td></tr>';
+      return;
+    }
+
+    body.innerHTML=list.map(s=>`
+      <tr>
+        <td><strong>${escapeHtml(s.naam||'')}</strong><br><small>${escapeHtml(s.email||'')}</small></td>
+        <td>${escapeHtml(s.shop_naam||'—')}</td>
+        <td>${escapeHtml(s.username||'')}</td>
+        <td>${s.customers_count ?? 0}</td>
+        <td>${s.loans_count ?? 0}</td>
+        <td><span class="badge ${s.status==='active'?'active':'blocked'}">${escapeHtml(s.status)}</span></td>
+        <td>
+          ${s.status==='active'
+            ? `<button class="action block" onclick="changeStatus(${s.id},'block')">Block</button>`
+            : `<button class="action unblock" onclick="changeStatus(${s.id},'unblock')">Unblock</button>`}
+        </td>
+      </tr>`).join('');
+  }catch(e){
+    if(e.message!=='Session expired') showToast(e.message,true);
+  }
+}
+
+async function changeStatus(id, action){
+  if(!confirm(action==='block' ? 'Block this shopkeeper?' : 'Unblock this shopkeeper?')) return;
+  try{
+    const data=await api('/admin/shopkeepers/'+id+'/'+action,{method:'POST'});
+    showToast(data.message || 'Updated');
+    loadShopkeepers();
+  }catch(e){
+    showToast(e.message,true);
+  }
+}
+
+function escapeHtml(value){
+  return String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+}
+
+$('loginForm').addEventListener('submit',async e=>{
+  e.preventDefault();
+  $('loginError').classList.add('hidden');
+  try{
+    await login($('username').value.trim(),$('password').value);
+  }catch(err){
+    $('loginError').textContent=err.message;
+    $('loginError').classList.remove('hidden');
+  }
+});
+
+$('logoutBtn').onclick=()=>{
+  localStorage.removeItem(TOKEN_KEY);
+  showLogin();
+};
+
+$('openAdd').onclick=()=>{
+  $('addError').classList.add('hidden');
+  $('modalBackdrop').classList.remove('hidden');
+};
+
+$('closeModal').onclick=()=>$('modalBackdrop').classList.add('hidden');
+
+$('modalBackdrop').addEventListener('click',e=>{
+  if(e.target===$('modalBackdrop')) $('modalBackdrop').classList.add('hidden');
+});
+
+$('addForm').addEventListener('submit',async e=>{
+  e.preventDefault();
+  $('addError').classList.add('hidden');
+
+  const payload={
+    naam:$('newName').value.trim(),
+    shop_naam:$('newShop').value.trim(),
+    email:$('newEmail').value.trim(),
+    username:$('newUsername').value.trim(),
+    password:$('newPassword').value
+  };
+
+  try{
+    const data=await api('/admin/shopkeepers',{
+      method:'POST',
+      body:JSON.stringify(payload)
+    });
+    $('addForm').reset();
+    $('modalBackdrop').classList.add('hidden');
+    showToast(data.message || 'Shopkeeper created');
+    loadShopkeepers();
+  }catch(err){
+    $('addError').textContent=err.message;
+    $('addError').classList.remove('hidden');
+  }
+});
+
+(async()=>{
+  if(!token()) return;
+  try{
+    const admin=await api('/admin/me');
+    showApp(admin);
+  }catch{}
+})();
+</script>
+</body>
+</html>
