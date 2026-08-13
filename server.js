@@ -6,14 +6,12 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
 // ===== JWT SECRET (login token banane/verify karne ke liye) =====
-// Production mein ye Railway environment variable se aana chahiye
 const JWT_SECRET = process.env.JWT_SECRET || 'qist-manager-secret-key-change-this';
 
 // ===== FIREBASE (FCM push) =====
 const { initializeApp, cert } = require('firebase-admin/app');
 const { getMessaging } = require('firebase-admin/messaging');
 
-// firebase key: environment variable se (hosting) ya file se (local)
 let serviceAccount;
 if (process.env.FIREBASE_KEY) {
   serviceAccount = JSON.parse(process.env.FIREBASE_KEY);
@@ -25,7 +23,6 @@ initializeApp({
   credential: cert(serviceAccount)
 });
 
-// Push bhejne wala function
 async function sendPushToLoan(loanId) {
   try {
     const loan = db.prepare('SELECT fcm_token FROM loans WHERE id = ?').get(loanId);
@@ -50,10 +47,30 @@ app.use(cors());
 const PORT = 3000;
 
 
+// ===== MIDDLEWARE: Token check karna (shopkeeper login verify) =====
+function verifyShopkeeperToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+    return res.status(401).json({ error: 'Login zaroori hai' });
+  }
+
+  jwt.verify(token, JWT_SECRET, (err, decoded) => {
+    if (err) {
+      return res.status(403).json({ error: 'Token invalid ya expire ho gaya, dobara login karein' });
+    }
+    req.shopkeeper_id = decoded.shopkeeper_id;
+    next();
+  });
+}
+
+
 // ===== ROUTE 1: Test =====
 app.get('/', (req, res) => {
   res.send('Installment Software ka server chal raha hai!');
 });
+
 
 // ===== ROUTE: SHOPKEEPER LOGIN =====
 app.post('/shopkeeper/login', (req, res) => {
@@ -79,7 +96,6 @@ app.post('/shopkeeper/login', (req, res) => {
     return res.status(401).json({ error: 'Username ya password ghalat hai' });
   }
 
-  // token banao (7 din tak valid rahega)
   const token = jwt.sign(
     { shopkeeper_id: shopkeeper.id, username: shopkeeper.username },
     JWT_SECRET,
@@ -99,26 +115,7 @@ app.post('/shopkeeper/login', (req, res) => {
 });
 
 
-// ===== MIDDLEWARE: Token check karna (Phase 3 mein use hoga) =====
-function verifyShopkeeperToken(req, res, next) {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1]; // "Bearer <token>"
-
-  if (!token) {
-    return res.status(401).json({ error: 'Login zaroori hai' });
-  }
-
-  jwt.verify(token, JWT_SECRET, (err, decoded) => {
-    if (err) {
-      return res.status(403).json({ error: 'Token invalid ya expire ho gaya, dobara login karein' });
-    }
-    req.shopkeeper_id = decoded.shopkeeper_id;
-    next();
-  });
-}
-
-
-// ===== ROUTE: APNA PROFILE DEKHNA (token se test karne ke liye) =====
+// ===== ROUTE: APNA PROFILE DEKHNA =====
 app.get('/shopkeeper/me', verifyShopkeeperToken, (req, res) => {
   const shopkeeper = db.prepare('SELECT id, naam, shop_naam, email, username, status FROM shopkeepers WHERE id = ?').get(req.shopkeeper_id);
   res.json(shopkeeper);
@@ -126,44 +123,48 @@ app.get('/shopkeeper/me', verifyShopkeeperToken, (req, res) => {
 
 
 // ===== ROUTE 2: CUSTOMER ADD =====
-app.post('/customers', (req, res) => {
+app.post('/customers', verifyShopkeeperToken, (req, res) => {
   const { naam, cnic, phone_number, pata, guarantor } = req.body;
   if (!naam) return res.status(400).json({ error: 'Customer ka naam zaroori hai' });
-  const command = db.prepare(`INSERT INTO customers (naam, cnic, phone_number, pata, guarantor) VALUES (?, ?, ?, ?, ?)`);
-  const result = command.run(naam, cnic, phone_number, pata, guarantor);
+  const command = db.prepare(`INSERT INTO customers (naam, cnic, phone_number, pata, guarantor, shopkeeper_id) VALUES (?, ?, ?, ?, ?, ?)`);
+  const result = command.run(naam, cnic, phone_number, pata, guarantor, req.shopkeeper_id);
   res.json({ message: 'Customer add ho gaya!', customer_id: result.lastInsertRowid });
 });
 
 
 // ===== ROUTE 3: CUSTOMERS DEKHNA =====
-app.get('/customers', (req, res) => {
-  const customers = db.prepare('SELECT * FROM customers').all();
+app.get('/customers', verifyShopkeeperToken, (req, res) => {
+  const customers = db.prepare('SELECT * FROM customers WHERE shopkeeper_id = ?').all(req.shopkeeper_id);
   res.json(customers);
 });
 
 
 // ===== ROUTE 4: LOAN ADD =====
-app.post('/loans', (req, res) => {
+app.post('/loans', verifyShopkeeperToken, (req, res) => {
   const { customer_id, phone_ka_naam, imei, total_qeemat, down_payment, kitni_installment } = req.body;
   if (!customer_id || !total_qeemat || !kitni_installment) {
     return res.status(400).json({ error: 'Customer, total qeemat aur installment zaroori hain' });
   }
+
+  const customer = db.prepare('SELECT * FROM customers WHERE id = ? AND shopkeeper_id = ?').get(customer_id, req.shopkeeper_id);
+  if (!customer) return res.status(403).json({ error: 'Ye customer aapka nahi hai' });
+
   const baqi_raqam = total_qeemat - (down_payment || 0);
   const per_month = baqi_raqam / kitni_installment;
-  const command = db.prepare(`INSERT INTO loans (customer_id, phone_ka_naam, imei, total_qeemat, down_payment, kitni_installment, per_month) VALUES (?, ?, ?, ?, ?, ?, ?)`);
-  const result = command.run(customer_id, phone_ka_naam, imei, total_qeemat, down_payment || 0, kitni_installment, per_month);
+  const command = db.prepare(`INSERT INTO loans (customer_id, phone_ka_naam, imei, total_qeemat, down_payment, kitni_installment, per_month, shopkeeper_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`);
+  const result = command.run(customer_id, phone_ka_naam, imei, total_qeemat, down_payment || 0, kitni_installment, per_month, req.shopkeeper_id);
   res.json({ message: 'Loan add ho gaya!', loan_id: result.lastInsertRowid, per_month: per_month });
 });
 
 
 // ===== ROUTE 5: LOANS DEKHNA =====
-app.get('/loans', (req, res) => {
-  const loans = db.prepare(`SELECT loans.*, customers.naam AS customer_naam FROM loans JOIN customers ON loans.customer_id = customers.id`).all();
+app.get('/loans', verifyShopkeeperToken, (req, res) => {
+  const loans = db.prepare(`SELECT loans.*, customers.naam AS customer_naam FROM loans JOIN customers ON loans.customer_id = customers.id WHERE loans.shopkeeper_id = ?`).all(req.shopkeeper_id);
   res.json(loans);
 });
 
 
-// ===== ROUTE 5B: IMEI SE LOAN DHOONDNA (QR provisioning ke liye) =====
+// ===== ROUTE 5B: IMEI SE LOAN DHOONDNA (phone call karta hai, koi login token nahi) =====
 app.get('/loans/by-imei/:imei', (req, res) => {
   const imei = req.params.imei;
   const loan = db.prepare(`
@@ -182,28 +183,28 @@ app.get('/loans/by-imei/:imei', (req, res) => {
 
 
 // ===== ROUTE 6: PHONE LOCK =====
-app.post('/loans/:id/lock', (req, res) => {
+app.post('/loans/:id/lock', verifyShopkeeperToken, (req, res) => {
   const loanId = req.params.id;
-  const command = db.prepare(`UPDATE loans SET status = 'locked' WHERE id = ?`);
-  const result = command.run(loanId);
+  const command = db.prepare(`UPDATE loans SET status = 'locked' WHERE id = ? AND shopkeeper_id = ?`);
+  const result = command.run(loanId, req.shopkeeper_id);
   if (result.changes === 0) return res.status(404).json({ error: 'Ye loan nahi mila' });
-  sendPushToLoan(loanId); // phone ko jagаo (band ho to bhi)
+  sendPushToLoan(loanId);
   res.json({ message: 'Phone LOCK ho gaya!', loan_id: loanId });
 });
 
 
 // ===== ROUTE 7: PHONE UNLOCK =====
-app.post('/loans/:id/unlock', (req, res) => {
+app.post('/loans/:id/unlock', verifyShopkeeperToken, (req, res) => {
   const loanId = req.params.id;
-  const command = db.prepare(`UPDATE loans SET status = 'active', next_due_date = datetime('now', '+30 days') WHERE id = ?`);
-  const result = command.run(loanId);
+  const command = db.prepare(`UPDATE loans SET status = 'active', next_due_date = datetime('now', '+30 days') WHERE id = ? AND shopkeeper_id = ?`);
+  const result = command.run(loanId, req.shopkeeper_id);
   if (result.changes === 0) return res.status(404).json({ error: 'Ye loan nahi mila' });
   sendPushToLoan(loanId);
   res.json({ message: 'Phone UNLOCK ho gaya! Agli due date 30 din aage.', loan_id: loanId });
 });
 
 
-// ===== ROUTE 8: STATUS POOCHNA =====
+// ===== ROUTE 8: STATUS POOCHNA (phone call karta hai, koi login token nahi) =====
 app.get('/loans/:id/status', (req, res) => {
   const loanId = req.params.id;
   const loan = db.prepare(`SELECT id, status, phone_ka_naam, imei, next_due_date FROM loans WHERE id = ?`).get(loanId);
@@ -213,10 +214,10 @@ app.get('/loans/:id/status', (req, res) => {
 
 
 // ===== ROUTE 9: PAYMENT ADD (+ AUTO-UNLOCK) =====
-app.post('/payments', (req, res) => {
+app.post('/payments', verifyShopkeeperToken, (req, res) => {
   const { loan_id, kitna_diya } = req.body;
   if (!loan_id || !kitna_diya) return res.status(400).json({ error: 'Loan aur raqam zaroori hai' });
-  const loan = db.prepare(`SELECT * FROM loans WHERE id = ?`).get(loan_id);
+  const loan = db.prepare(`SELECT * FROM loans WHERE id = ? AND shopkeeper_id = ?`).get(loan_id, req.shopkeeper_id);
   if (!loan) return res.status(404).json({ error: 'Ye loan nahi mila' });
 
   db.prepare(`INSERT INTO payments (loan_id, kitna_diya) VALUES (?, ?)`).run(loan_id, kitna_diya);
@@ -238,7 +239,7 @@ app.post('/payments', (req, res) => {
     auto_unlock_hua = true;
   }
 
-  sendPushToLoan(loan_id); // phone ko jagаo
+  sendPushToLoan(loan_id);
 
   res.json({
     message: 'Payment add ho gaya!',
@@ -250,7 +251,7 @@ app.post('/payments', (req, res) => {
 });
 
 
-// ===== ROUTE 10: LOAN SUMMARY =====
+// ===== ROUTE 10: LOAN SUMMARY (phone call karta hai, koi login token nahi) =====
 app.get('/loans/:id/summary', (req, res) => {
   const loanId = req.params.id;
   const loan = db.prepare(`SELECT * FROM loans WHERE id = ?`).get(loanId);
@@ -271,27 +272,29 @@ app.get('/loans/:id/summary', (req, res) => {
 
 
 // ===== ROUTE 11: LOAN PAYMENTS =====
-app.get('/loans/:id/payments', (req, res) => {
+app.get('/loans/:id/payments', verifyShopkeeperToken, (req, res) => {
   const loanId = req.params.id;
+  const loan = db.prepare('SELECT * FROM loans WHERE id = ? AND shopkeeper_id = ?').get(loanId, req.shopkeeper_id);
+  if (!loan) return res.status(404).json({ error: 'Ye loan nahi mila' });
   const payments = db.prepare(`SELECT * FROM payments WHERE loan_id = ? ORDER BY id DESC`).all(loanId);
   res.json(payments);
 });
 
 
 // ===== ROUTE 12: DUE DATE SET =====
-app.post('/loans/:id/set-due-date', (req, res) => {
+app.post('/loans/:id/set-due-date', verifyShopkeeperToken, (req, res) => {
   const loanId = req.params.id;
   const { due_date } = req.body;
   if (!due_date) return res.status(400).json({ error: 'due_date zaroori hai' });
-  const command = db.prepare(`UPDATE loans SET next_due_date = ? WHERE id = ?`);
-  const result = command.run(due_date, loanId);
+  const command = db.prepare(`UPDATE loans SET next_due_date = ? WHERE id = ? AND shopkeeper_id = ?`);
+  const result = command.run(due_date, loanId, req.shopkeeper_id);
   if (result.changes === 0) return res.status(404).json({ error: 'Ye loan nahi mila' });
-  sendPushToLoan(loanId); // agar overdue set kiya to phone ko jagаo
+  sendPushToLoan(loanId);
   res.json({ message: 'Due date set ho gayi!', due_date: due_date });
 });
 
 
-// ===== ROUTE 13: APP KA TOKEN SAVE =====
+// ===== ROUTE 13: APP KA TOKEN SAVE (phone call karta hai, koi login token nahi) =====
 app.post('/loans/:id/token', (req, res) => {
   const loanId = req.params.id;
   const { token } = req.body;
@@ -309,7 +312,7 @@ function chowkidarCheck() {
   overdueLoans.forEach(loan => {
     db.prepare(`UPDATE loans SET status = 'locked' WHERE id = ?`).run(loan.id);
     console.log(`AUTO-LOCK! Loan #${loan.id} (${loan.phone_ka_naam}) - phone LOCK!`);
-    sendPushToLoan(loan.id); // phone ko jagаo
+    sendPushToLoan(loan.id);
   });
   if (overdueLoans.length > 0) console.log(`Chowkidar ne ${overdueLoans.length} phone auto-lock kiye.`);
 }
