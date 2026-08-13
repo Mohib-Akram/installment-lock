@@ -2,11 +2,32 @@
 const Database = require('better-sqlite3');
 const bcrypt = require('bcryptjs');
 
-// database file bana/khol rahe hain (ye file khud ban jayegi)
-const dbPath = process.env.RAILWAY_ENVIRONMENT ? '/app/data/installment.db' : 'installment.db';
+// database file bana/khol rahe hain
+const dbPath = process.env.RAILWAY_ENVIRONMENT
+  ? '/app/data/installment.db'
+  : 'installment.db';
+
 const db = new Database(dbPath);
 
-// ===== TABLE 0: SHOPKEEPERS (dukaandaar ki maloomat) =====
+
+// =========================================================
+// TABLE 0: ADMINS (Super Admin)
+// =========================================================
+db.exec(`
+  CREATE TABLE IF NOT EXISTS admins (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    naam TEXT NOT NULL,
+    username TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    status TEXT DEFAULT 'active',
+    banaya_gaya TEXT DEFAULT (datetime('now'))
+  )
+`);
+
+
+// =========================================================
+// TABLE 1: SHOPKEEPERS (dukaandaar)
+// =========================================================
 db.exec(`
   CREATE TABLE IF NOT EXISTS shopkeepers (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -20,7 +41,10 @@ db.exec(`
   )
 `);
 
-// ===== TABLE 1: CUSTOMERS (customers ki maloomat) =====
+
+// =========================================================
+// TABLE 2: CUSTOMERS
+// =========================================================
 db.exec(`
   CREATE TABLE IF NOT EXISTS customers (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -33,7 +57,10 @@ db.exec(`
   )
 `);
 
-// ===== TABLE 2: LOANS (har loan ki tafseel) =====
+
+// =========================================================
+// TABLE 3: LOANS
+// =========================================================
 db.exec(`
   CREATE TABLE IF NOT EXISTS loans (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -52,7 +79,10 @@ db.exec(`
   )
 `);
 
-// ===== TABLE 3: PAYMENTS (har payment ka record) =====
+
+// =========================================================
+// TABLE 4: PAYMENTS
+// =========================================================
 db.exec(`
   CREATE TABLE IF NOT EXISTS payments (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -63,46 +93,133 @@ db.exec(`
   )
 `);
 
-// ===== MIGRATION: purane database mein shopkeeper_id column safely add karna =====
+
+// =========================================================
+// MIGRATION HELPER
+// =========================================================
 function columnExists(table, column) {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all();
   return columns.some(col => col.name === column);
 }
 
+
+// =========================================================
+// CUSTOMERS → SHOPKEEPER ID
+// =========================================================
 if (!columnExists('customers', 'shopkeeper_id')) {
-  db.exec(`ALTER TABLE customers ADD COLUMN shopkeeper_id INTEGER`);
+  db.exec(`
+    ALTER TABLE customers
+    ADD COLUMN shopkeeper_id INTEGER
+  `);
+
   console.log('customers table mein shopkeeper_id column add hua.');
 }
 
+
+// =========================================================
+// LOANS → SHOPKEEPER ID
+// =========================================================
 if (!columnExists('loans', 'shopkeeper_id')) {
-  db.exec(`ALTER TABLE loans ADD COLUMN shopkeeper_id INTEGER`);
+  db.exec(`
+    ALTER TABLE loans
+    ADD COLUMN shopkeeper_id INTEGER
+  `);
+
   console.log('loans table mein shopkeeper_id column add hua.');
 }
 
-// ===== DEFAULT ADMIN/SHOPKEEPER: agar koi shopkeeper nahi to ek bana do =====
-// (taake purana data isse assign ho sake, aur aapka apna login ready ho)
-const existingShopkeeper = db.prepare('SELECT * FROM shopkeepers LIMIT 1').get();
+
+// =========================================================
+// DEFAULT SHOPKEEPER
+// =========================================================
+// Agar koi shopkeeper nahi hai to purane system ke liye
+// default shopkeeper create kar do.
+const existingShopkeeper = db
+  .prepare('SELECT * FROM shopkeepers LIMIT 1')
+  .get();
 
 if (!existingShopkeeper) {
+
   const defaultUsername = 'admin';
-  const defaultPassword = 'admin123'; // ⚠️ ye pehli baar login karke turant badal lena
+  const defaultPassword = 'admin123';
+
   const passwordHash = bcrypt.hashSync(defaultPassword, 10);
 
   const result = db.prepare(`
-    INSERT INTO shopkeepers (naam, shop_naam, email, username, password_hash, status)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run('Muhammad Mohib Akram', 'Qist Manager', 'admin@example.com', defaultUsername, passwordHash, 'active');
+    INSERT INTO shopkeepers
+      (naam, shop_naam, email, username, password_hash, status)
+    VALUES
+      (?, ?, ?, ?, ?, ?)
+  `).run(
+    'Muhammad Mohib Akram',
+    'Qist Manager',
+    'admin@example.com',
+    defaultUsername,
+    passwordHash,
+    'active'
+  );
 
   const newShopkeeperId = result.lastInsertRowid;
-  console.log(`Default shopkeeper bana: username="${defaultUsername}", password="${defaultPassword}" (login ke baad zaroor badlein!)`);
 
-  // purana saara data isi pehle shopkeeper ko assign kar do
-  db.prepare(`UPDATE customers SET shopkeeper_id = ? WHERE shopkeeper_id IS NULL`).run(newShopkeeperId);
-  db.prepare(`UPDATE loans SET shopkeeper_id = ? WHERE shopkeeper_id IS NULL`).run(newShopkeeperId);
+  console.log(
+    `Default shopkeeper bana: username="${defaultUsername}", password="${defaultPassword}"`
+  );
+
+  // Purana data pehle shopkeeper ko assign karo
+  db.prepare(`
+    UPDATE customers
+    SET shopkeeper_id = ?
+    WHERE shopkeeper_id IS NULL
+  `).run(newShopkeeperId);
+
+  db.prepare(`
+    UPDATE loans
+    SET shopkeeper_id = ?
+    WHERE shopkeeper_id IS NULL
+  `).run(newShopkeeperId);
+
   console.log('Purana data default shopkeeper ko assign ho gaya.');
 }
 
+
+// =========================================================
+// DEFAULT SUPER ADMIN
+// =========================================================
+// Agar admin table mein koi admin nahi hai to ek default
+// Super Admin automatically create hoga.
+const existingAdmin = db
+  .prepare('SELECT * FROM admins LIMIT 1')
+  .get();
+
+if (!existingAdmin) {
+
+  const adminUsername = 'admin';
+  const adminPassword = 'admin123';
+
+  const adminPasswordHash = bcrypt.hashSync(adminPassword, 10);
+
+  db.prepare(`
+    INSERT INTO admins
+      (naam, username, password_hash, status)
+    VALUES
+      (?, ?, ?, ?)
+  `).run(
+    'Super Admin',
+    adminUsername,
+    adminPasswordHash,
+    'active'
+  );
+
+  console.log(
+    `Default SUPER ADMIN bana: username="${adminUsername}", password="${adminPassword}"`
+  );
+}
+
+
 console.log('Database taiyar hai! Saari tables ban gayi hain.');
 
-// is db ko doosri files mein istemal ke liye bahar bhej rahe hain
+
+// =========================================================
+// EXPORT DATABASE
+// =========================================================
 module.exports = db;

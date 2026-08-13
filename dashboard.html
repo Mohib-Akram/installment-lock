@@ -39,6 +39,50 @@
   h1,h2,h3{font-family:'Manrope',Arial,sans-serif; margin:0;}
   .layout{display:flex; min-height:100vh;}
 
+  /* ===== Login Screen ===== */
+  .login-screen{
+    min-height:100vh; width:100%;
+    display:flex; align-items:center; justify-content:center;
+    background:var(--ink);
+    padding:20px;
+  }
+  .login-card{
+    background:var(--card);
+    border-radius:14px;
+    padding:36px 32px;
+    width:100%; max-width:380px;
+    box-shadow:0 20px 60px rgba(0,0,0,0.35);
+  }
+  .login-brand{display:flex; align-items:center; gap:10px; margin-bottom:26px;}
+  .login-brand .brand-mark{
+    width:38px; height:38px; border-radius:10px;
+    background:var(--amber);
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  }
+  .login-brand .brand-mark svg{width:20px; height:20px;}
+  .login-brand strong{font-family:'Manrope',sans-serif; font-size:18px; font-weight:800; display:block; color:var(--ink);}
+  .login-brand span{font-size:12px; color:var(--text-soft);}
+  .login-card h2{font-size:17px; font-weight:800; margin-bottom:4px; color:var(--ink);}
+  .login-card .sub{font-size:13px; color:var(--text-soft); margin:0 0 22px;}
+  .login-field{margin-bottom:14px;}
+  .login-field label{font-size:12px; font-weight:600; color:var(--text-soft); display:block; margin-bottom:6px;}
+  .login-field input{
+    width:100%; padding:11px 13px; border:1px solid var(--border); border-radius:8px;
+    font-size:14px; font-family:'Inter',sans-serif; background:#FCFCFD;
+  }
+  .login-field input:focus{outline:none; border-color:var(--ink-soft); background:#fff; box-shadow:0 0 0 3px rgba(29,38,70,0.08);}
+  #loginError{
+    display:none; background:var(--rust-soft); color:var(--rust);
+    padding:10px 12px; border-radius:7px; font-size:12.5px; margin-bottom:14px;
+  }
+  .login-btn{
+    width:100%; background:var(--ink); color:#fff; border:none;
+    padding:12px; border-radius:8px; font-size:14px; font-weight:700;
+    cursor:pointer; font-family:'Inter',sans-serif; transition:background .12s;
+  }
+  .login-btn:hover{background:var(--ink-soft);}
+  .login-btn:disabled{opacity:0.6; cursor:not-allowed;}
+
   /* ===== Sidebar ===== */
   .sidebar{
     width:230px;
@@ -84,9 +128,17 @@
     margin-top:auto; padding:12px 10px 2px;
     border-top:1px solid rgba(255,255,255,0.08);
     font-size:11.5px; color:#7C86A6; line-height:1.5;
-    display:flex; align-items:center; gap:7px;
   }
+  .sidebar-user{display:flex; align-items:center; gap:7px; margin-bottom:10px;}
   .dot-live{width:6px; height:6px; border-radius:50%; background:var(--green); flex-shrink:0;}
+  .logout-btn{
+    width:100%; background:rgba(255,255,255,0.06); color:#EDEFF7; border:none;
+    padding:8px 10px; border-radius:7px; font-size:12.5px; font-weight:600;
+    cursor:pointer; font-family:'Inter',sans-serif; text-align:left;
+    display:flex; align-items:center; gap:7px; transition:background .12s;
+  }
+  .logout-btn:hover{background:rgba(255,255,255,0.14);}
+  .logout-btn svg{width:14px; height:14px;}
 
   /* ===== Main ===== */
   .main{flex:1; min-width:0; padding:26px 34px 60px; position:relative;}
@@ -358,7 +410,37 @@
 </head>
 <body>
 
-<div class="layout">
+<!-- ===== LOGIN SCREEN ===== -->
+<div class="login-screen" id="loginScreen">
+  <div class="login-card">
+    <div class="login-brand">
+      <div class="brand-mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#2B1D02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2"/><circle cx="12" cy="18" r="0.5" fill="#2B1D02"/></svg>
+      </div>
+      <div>
+        <strong>Installment Manager</strong>
+        <span>Shopkeeper Login</span>
+      </div>
+    </div>
+    <h2>Welcome back</h2>
+    <p class="sub">Login with your shop's username and password.</p>
+
+    <div id="loginError"></div>
+
+    <div class="login-field">
+      <label>Username</label>
+      <input type="text" id="loginUsername" placeholder="Username" autocomplete="username">
+    </div>
+    <div class="login-field">
+      <label>Password</label>
+      <input type="password" id="loginPassword" placeholder="Password" autocomplete="current-password">
+    </div>
+    <button class="login-btn" id="loginBtn" onclick="doLogin()">Login</button>
+  </div>
+</div>
+
+<!-- ===== DASHBOARD LAYOUT ===== -->
+<div class="layout" id="dashboardLayout" style="display:none;">
 
   <!-- ===== SIDEBAR ===== -->
   <aside class="sidebar">
@@ -392,7 +474,13 @@
     </nav>
 
     <div class="sidebar-foot">
-      <span class="dot-live"></span> Server: localhost:3000
+      <div class="sidebar-user">
+        <span class="dot-live"></span> <span id="shopkeeperName">-</span>
+      </div>
+      <button class="logout-btn" onclick="logout()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+        Logout
+      </button>
     </div>
   </aside>
 
@@ -630,6 +718,120 @@
     setTimeout(() => el.remove(), 4000);
   }
 
+  // =========================================================
+  // ===== AUTH: login, logout, token-aware fetch =====
+  // =========================================================
+  function getToken() {
+    return localStorage.getItem('token');
+  }
+
+  // authFetch: normal fetch, but auto-adds the login token
+  // and auto-logs-out if the session is invalid/expired
+  async function authFetch(url, options = {}) {
+    const token = getToken();
+    options.headers = options.headers || {};
+    if (token) options.headers['Authorization'] = 'Bearer ' + token;
+
+    const response = await fetch(url, options);
+
+    if (response.status === 401 || response.status === 403) {
+      toast('Session khatam ho gayi, dobara login karein.', 'error');
+      logout();
+      throw new Error('Session expired');
+    }
+
+    return response;
+  }
+
+  function showLogin() {
+    document.getElementById('loginScreen').style.display = 'flex';
+    document.getElementById('dashboardLayout').style.display = 'none';
+  }
+
+  function showDashboard(shopkeeper) {
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('dashboardLayout').style.display = 'flex';
+    document.getElementById('shopkeeperName').textContent = shopkeeper.shop_naam || shopkeeper.naam || shopkeeper.username;
+
+    loadCustomers();
+    loadCustomerDropdown();
+    loadLoans();
+    loadPaymentDropdown();
+  }
+
+  async function doLogin() {
+    const username = document.getElementById('loginUsername').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    const errEl = document.getElementById('loginError');
+    const btn = document.getElementById('loginBtn');
+    errEl.style.display = 'none';
+
+    if (!username || !password) {
+      errEl.textContent = 'Username aur password dono zaroori hain.';
+      errEl.style.display = 'block';
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Logging in...';
+
+    try {
+      const response = await fetch(SERVER + '/shopkeeper/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        errEl.textContent = data.error || 'Login fail ho gaya.';
+        errEl.style.display = 'block';
+        return;
+      }
+
+      localStorage.setItem('token', data.token);
+      document.getElementById('loginPassword').value = '';
+      showDashboard(data.shopkeeper);
+      toast('Login kamiyab!', 'success');
+    } catch (e) {
+      errEl.textContent = 'Server se connect nahi ho saka. Internet check karein.';
+      errEl.style.display = 'block';
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Login';
+    }
+  }
+
+  function logout() {
+    localStorage.removeItem('token');
+    showLogin();
+  }
+
+  // Enter key se bhi login ho sake
+  document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('loginUsername').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+    document.getElementById('loginPassword').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+  });
+
+  // page khulte hi check karo: pehle se login hai kya?
+  async function initApp() {
+    const token = getToken();
+    if (!token) {
+      showLogin();
+      return;
+    }
+    try {
+      const response = await fetch(SERVER + '/shopkeeper/me', {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      if (!response.ok) throw new Error('invalid token');
+      const shopkeeper = await response.json();
+      showDashboard(shopkeeper);
+    } catch (e) {
+      logout();
+    }
+  }
+
   // ===== nav switching =====
   const TITLES = {
     overview: ['Overview', 'A quick summary of your customers, loans, and locked phones.'],
@@ -660,23 +862,25 @@
       return;
     }
 
-    const response = await fetch(SERVER + '/customers', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ naam, cnic, phone_number, pata, guarantor })
-    });
+    try {
+      const response = await authFetch(SERVER + '/customers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ naam, cnic, phone_number, pata, guarantor })
+      });
 
-    const result = await response.json();
-    toast(result.message, 'success');
+      const result = await response.json();
+      toast(result.message, 'success');
 
-    document.getElementById('naam').value = '';
-    document.getElementById('cnic').value = '';
-    document.getElementById('phone_number').value = '';
-    document.getElementById('pata').value = '';
-    document.getElementById('guarantor').value = '';
+      document.getElementById('naam').value = '';
+      document.getElementById('cnic').value = '';
+      document.getElementById('phone_number').value = '';
+      document.getElementById('pata').value = '';
+      document.getElementById('guarantor').value = '';
 
-    loadCustomers();
-    loadCustomerDropdown();
+      loadCustomers();
+      loadCustomerDropdown();
+    } catch (e) { /* session expired, already handled */ }
   }
 
   // ===== load + render customers =====
@@ -684,11 +888,13 @@
     const list = document.getElementById('customerList');
     list.innerHTML = '<tr class="loading-row"><td colspan="5"><span class="spinner"></span>Loading customers...</td></tr>';
 
-    const response = await fetch(SERVER + '/customers');
-    allCustomers = await response.json();
+    try {
+      const response = await authFetch(SERVER + '/customers');
+      allCustomers = await response.json();
 
-    document.getElementById('statCustomers').textContent = allCustomers.length;
-    renderCustomers();
+      document.getElementById('statCustomers').textContent = allCustomers.length;
+      renderCustomers();
+    } catch (e) { /* session expired, already handled */ }
   }
 
   function renderCustomers() {
@@ -793,26 +999,28 @@
       return;
     }
 
-    const response = await fetch(SERVER + '/loans', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        customer_id, phone_ka_naam, imei,
-        total_qeemat, down_payment, kitni_installment
-      })
-    });
+    try {
+      const response = await authFetch(SERVER + '/loans', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customer_id, phone_ka_naam, imei,
+          total_qeemat, down_payment, kitni_installment
+        })
+      });
 
-    const result = await response.json();
-    toast(result.message + ' Per month: ' + fmt(result.per_month), 'success');
+      const result = await response.json();
+      toast(result.message + ' Per month: ' + fmt(result.per_month), 'success');
 
-    document.getElementById('phone_ka_naam').value = '';
-    document.getElementById('imei').value = '';
-    document.getElementById('total_qeemat').value = '';
-    document.getElementById('down_payment').value = '';
-    document.getElementById('kitni_installment').value = '';
+      document.getElementById('phone_ka_naam').value = '';
+      document.getElementById('imei').value = '';
+      document.getElementById('total_qeemat').value = '';
+      document.getElementById('down_payment').value = '';
+      document.getElementById('kitni_installment').value = '';
 
-    loadLoans();
-    loadPaymentDropdown();
+      loadLoans();
+      loadPaymentDropdown();
+    } catch (e) { /* session expired, already handled */ }
   }
 
   // ===== load + render loans =====
@@ -820,21 +1028,23 @@
     const list = document.getElementById('loanList');
     list.innerHTML = '<tr class="loading-row"><td colspan="10"><span class="spinner"></span>Loading loans...</td></tr>';
 
-    const response = await fetch(SERVER + '/loans');
-    allLoans = await response.json();
+    try {
+      const response = await authFetch(SERVER + '/loans');
+      allLoans = await response.json();
 
-    let activeCount = 0, lockedCount = 0, completedCount = 0;
-    allLoans.forEach(l => {
-      const key = statusKey(l.status);
-      if (key === 'active') activeCount++;
-      if (key === 'locked') lockedCount++;
-      if (key === 'completed') completedCount++;
-    });
-    document.getElementById('statActive').textContent = activeCount;
-    document.getElementById('statLocked').textContent = lockedCount;
-    document.getElementById('statCompleted').textContent = completedCount;
+      let activeCount = 0, lockedCount = 0, completedCount = 0;
+      allLoans.forEach(l => {
+        const key = statusKey(l.status);
+        if (key === 'active') activeCount++;
+        if (key === 'locked') lockedCount++;
+        if (key === 'completed') completedCount++;
+      });
+      document.getElementById('statActive').textContent = activeCount;
+      document.getElementById('statLocked').textContent = lockedCount;
+      document.getElementById('statCompleted').textContent = completedCount;
 
-    renderLoans();
+      renderLoans();
+    } catch (e) { /* session expired, already handled */ }
   }
 
   function renderLoans() {
@@ -891,33 +1101,40 @@
 
   // ===== fill customer dropdown =====
   async function loadCustomerDropdown() {
-    const response = await fetch(SERVER + '/customers');
-    const customers = await response.json();
+    try {
+      const response = await authFetch(SERVER + '/customers');
+      const customers = await response.json();
 
-    const dropdown = document.getElementById('loan_customer');
-    dropdown.innerHTML = '<option value="">-- Select customer --</option>';
+      const dropdown = document.getElementById('loan_customer');
+      dropdown.innerHTML = '<option value="">-- Select customer --</option>';
 
-    customers.forEach(c => {
-      dropdown.innerHTML += `<option value="${c.id}">${c.naam}</option>`;
-    });
+      customers.forEach(c => {
+        dropdown.innerHTML += `<option value="${c.id}">${c.naam}</option>`;
+      });
+    } catch (e) { /* session expired, already handled */ }
   }
 
   // ===== lock phone =====
   async function lockPhone(loanId) {
-    const response = await fetch(SERVER + '/loans/' + loanId + '/lock', { method: 'POST' });
-    const result = await response.json();
-    toast(result.message);
-    loadLoans();
+    try {
+      const response = await authFetch(SERVER + '/loans/' + loanId + '/lock', { method: 'POST' });
+      const result = await response.json();
+      toast(result.message);
+      loadLoans();
+    } catch (e) { /* session expired, already handled */ }
   }
 
   // ===== unlock phone =====
   async function unlockPhone(loanId) {
-    const response = await fetch(SERVER + '/loans/' + loanId + '/unlock', { method: 'POST' });
-    const result = await response.json();
-    toast(result.message, 'success');
-    loadLoans();
+    try {
+      const response = await authFetch(SERVER + '/loans/' + loanId + '/unlock', { method: 'POST' });
+      const result = await response.json();
+      toast(result.message, 'success');
+      loadLoans();
+    } catch (e) { /* session expired, already handled */ }
   }
-// ===== set due date (auto-lock ke liye) =====
+
+  // ===== set due date (auto-lock ke liye) =====
   async function setDueDate(loanId) {
     // user se tareekh poocho (asaan format)
     const input = prompt(
@@ -932,20 +1149,23 @@
     // format theek karo (seconds add karo)
     const dueDate = input.length === 16 ? input + ':00' : input;
 
-    const response = await fetch(SERVER + '/loans/' + loanId + '/set-due-date', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ due_date: dueDate })
-    });
+    try {
+      const response = await authFetch(SERVER + '/loans/' + loanId + '/set-due-date', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ due_date: dueDate })
+      });
 
-    const result = await response.json();
-    if (result.error) {
-      toast(result.error, 'error');
-    } else {
-      toast('Due date set: ' + dueDate, 'success');
-      loadLoans();
-    }
+      const result = await response.json();
+      if (result.error) {
+        toast(result.error, 'error');
+      } else {
+        toast('Due date set: ' + dueDate, 'success');
+        loadLoans();
+      }
+    } catch (e) { /* session expired, already handled */ }
   }
+
   // ===== add payment (with auto-unlock) =====
   async function addPayment() {
     const loan_id = document.getElementById('payment_loan').value;
@@ -956,52 +1176,53 @@
       return;
     }
 
-    const response = await fetch(SERVER + '/payments', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ loan_id, kitna_diya })
-    });
+    try {
+      const response = await authFetch(SERVER + '/payments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ loan_id, kitna_diya })
+      });
 
-    const result = await response.json();
+      const result = await response.json();
 
-    let msg = `<b>${result.message}</b><br>`;
-    msg += `Paid so far: ${fmt(result.ab_tak_diya)}<br>`;
-    msg += `Remaining: ${fmt(result.baqi)}`;
+      let msg = `<b>${result.message}</b><br>`;
+      msg += `Paid so far: ${fmt(result.ab_tak_diya)}<br>`;
+      msg += `Remaining: ${fmt(result.baqi)}`;
 
-    if (result.auto_unlock_hua) {
-      msg += `<br><br><span class="success-line">Full payment received. Phone auto-unlocked and loan completed.</span>`;
-    }
+      if (result.auto_unlock_hua) {
+        msg += `<br><br><span class="success-line">Full payment received. Phone auto-unlocked and loan completed.</span>`;
+      }
 
-    const box = document.getElementById('paymentResult');
-    box.innerHTML = msg;
-    box.classList.add('show');
+      const box = document.getElementById('paymentResult');
+      box.innerHTML = msg;
+      box.classList.add('show');
 
-    document.getElementById('kitna_diya').value = '';
+      document.getElementById('kitna_diya').value = '';
 
-    loadLoans();
-    loadPaymentDropdown();
+      loadLoans();
+      loadPaymentDropdown();
+    } catch (e) { /* session expired, already handled */ }
   }
 
   // ===== fill loan dropdown (for payments) =====
   async function loadPaymentDropdown() {
-    const response = await fetch(SERVER + '/loans');
-    const loans = await response.json();
+    try {
+      const response = await authFetch(SERVER + '/loans');
+      const loans = await response.json();
 
-    const dropdown = document.getElementById('payment_loan');
-    dropdown.innerHTML = '<option value="">-- Select loan --</option>';
+      const dropdown = document.getElementById('payment_loan');
+      dropdown.innerHTML = '<option value="">-- Select loan --</option>';
 
-    loans.forEach(l => {
-      if (l.status !== 'completed') {
-        dropdown.innerHTML += `<option value="${l.id}">Loan #${l.id} - ${l.customer_naam} (${l.phone_ka_naam || 'phone'})</option>`;
-      }
-    });
+      loans.forEach(l => {
+        if (l.status !== 'completed') {
+          dropdown.innerHTML += `<option value="${l.id}">Loan #${l.id} - ${l.customer_naam} (${l.phone_ka_naam || 'phone'})</option>`;
+        }
+      });
+    } catch (e) { /* session expired, already handled */ }
   }
 
-  // load everything when page opens
-  loadCustomers();
-  loadCustomerDropdown();
-  loadLoans();
-  loadPaymentDropdown();
+  // ===== app start: check login status =====
+  initApp();
 </script>
 
 </body>
