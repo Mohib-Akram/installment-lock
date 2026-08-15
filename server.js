@@ -5,9 +5,40 @@ const cors = require('cors');
 const db = require('./database');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
+const nodemailer = require('nodemailer');
 
 // ===== JWT SECRET =====
 const JWT_SECRET = process.env.JWT_SECRET || 'qist-manager-secret-key-change-this';
+
+
+// ===== PASSWORD RESET / OTP =====
+// OTPs are kept in memory, expire after 10 minutes, and are single-use.
+const passwordResetOtps = new Map();
+const OTP_EXPIRES_MS = 10 * 60 * 1000;
+const OTP_COOLDOWN_MS = 60 * 1000;
+const OTP_MAX_ATTEMPTS = 5;
+
+function getMailTransporter() {
+  const email = process.env.SMTP_EMAIL;
+  const password = process.env.SMTP_APP_PASSWORD;
+
+  if (!email || !password) {
+    throw new Error('SMTP_EMAIL ya SMTP_APP_PASSWORD configured nahi hai');
+  }
+
+  return nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: email,
+      pass: password
+    }
+  });
+}
+
+function generateOtp() {
+  return String(crypto.randomInt(100000, 1000000));
+}
 
 
 // ===== FIREBASE (FCM PUSH) =====
@@ -239,6 +270,156 @@ app.post('/shopkeeper/login', (req, res) => {
       shop_naam: shopkeeper.shop_naam,
       username: shopkeeper.username
     }
+  });
+});
+
+
+// =========================================================
+// SHOPKEEPER FORGOT PASSWORD — SEND OTP
+// =========================================================
+
+app.post('/shopkeeper/forgot-password', async (req, res) => {
+
+  const identifier = String(req.body.identifier || '').trim();
+
+  if (!identifier) {
+    return res.status(400).json({
+      error: 'Username ya registered email zaroori hai'
+    });
+  }
+
+  const shopkeeper = db.prepare(`
+    SELECT id, naam, username, email, status
+    FROM shopkeepers
+    WHERE username = ? OR lower(email) = lower(?)
+  `).get(identifier, identifier);
+
+  // Do not reveal whether an account exists.
+  const genericMessage = 'Agar account aur registered email mil gaya hai to OTP email kar diya gaya hai.';
+
+  if (!shopkeeper || shopkeeper.status === 'blocked' || !shopkeeper.email) {
+    return res.json({ message: genericMessage });
+  }
+
+  const existing = passwordResetOtps.get(shopkeeper.id);
+  if (existing && Date.now() - existing.sentAt < OTP_COOLDOWN_MS) {
+    return res.json({ message: genericMessage });
+  }
+
+  const otp = generateOtp();
+  passwordResetOtps.set(shopkeeper.id, {
+    otp,
+    sentAt: Date.now(),
+    expiresAt: Date.now() + OTP_EXPIRES_MS,
+    attempts: 0
+  });
+
+  try {
+    const transporter = getMailTransporter();
+
+    await transporter.sendMail({
+      from: `Installment Lock <${process.env.SMTP_EMAIL}>`,
+      to: shopkeeper.email,
+      subject: 'Installment Lock — Password Reset OTP',
+      text: `Assalam-o-Alaikum ${shopkeeper.naam || shopkeeper.username},\n\nAapka password reset OTP hai: ${otp}\n\nYe OTP 10 minutes tak valid hai. Agar aapne password reset request nahi ki to is email ko ignore kar dein.\n\nInstallment Lock`,
+      html: `
+        <div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;padding:24px;border:1px solid #e5e7eb;border-radius:12px">
+          <h2 style="margin-top:0">Installment Lock</h2>
+          <p>Assalam-o-Alaikum ${String(shopkeeper.naam || shopkeeper.username).replace(/</g,'&lt;')},</p>
+          <p>Aapke password reset ke liye OTP:</p>
+          <div style="font-size:32px;font-weight:800;letter-spacing:8px;text-align:center;padding:18px 0">${otp}</div>
+          <p><strong>Ye OTP 10 minutes tak valid hai.</strong></p>
+          <p style="color:#667085;font-size:13px">Agar aapne password reset request nahi ki to is email ko ignore kar dein.</p>
+        </div>
+      `
+    });
+
+    res.json({ message: genericMessage });
+  } catch (error) {
+    passwordResetOtps.delete(shopkeeper.id);
+    console.error('Password reset email error:', error.message);
+    res.status(500).json({
+      error: 'OTP email nahi bheji ja saki. Thori dair baad dobara try karein.'
+    });
+  }
+});
+
+
+// =========================================================
+// SHOPKEEPER FORGOT PASSWORD — VERIFY OTP + RESET
+// =========================================================
+
+app.post('/shopkeeper/reset-password', (req, res) => {
+
+  const identifier = String(req.body.identifier || '').trim();
+  const otp = String(req.body.otp || '').trim();
+  const newPassword = String(req.body.new_password || '');
+
+  if (!identifier || !otp || !newPassword) {
+    return res.status(400).json({
+      error: 'Username/email, OTP aur new password zaroori hain'
+    });
+  }
+
+  if (newPassword.length < 6) {
+    return res.status(400).json({
+      error: 'New password kam az kam 6 characters ka hona chahiye'
+    });
+  }
+
+  const shopkeeper = db.prepare(`
+    SELECT id, username, email, status
+    FROM shopkeepers
+    WHERE username = ? OR lower(email) = lower(?)
+  `).get(identifier, identifier);
+
+  if (!shopkeeper || shopkeeper.status === 'blocked') {
+    return res.status(400).json({
+      error: 'OTP ya account information ghalat hai'
+    });
+  }
+
+  const reset = passwordResetOtps.get(shopkeeper.id);
+
+  if (!reset) {
+    return res.status(400).json({
+      error: 'OTP expire ho gaya ya request nahi mili. Naya OTP mangwayein.'
+    });
+  }
+
+  if (Date.now() > reset.expiresAt) {
+    passwordResetOtps.delete(shopkeeper.id);
+    return res.status(400).json({
+      error: 'OTP expire ho gaya. Naya OTP mangwayein.'
+    });
+  }
+
+  if (reset.attempts >= OTP_MAX_ATTEMPTS) {
+    passwordResetOtps.delete(shopkeeper.id);
+    return res.status(400).json({
+      error: 'OTP attempts limit complete ho gayi. Naya OTP mangwayein.'
+    });
+  }
+
+  if (otp !== reset.otp) {
+    reset.attempts += 1;
+    return res.status(400).json({
+      error: 'OTP ghalat hai'
+    });
+  }
+
+  const passwordHash = bcrypt.hashSync(newPassword, 10);
+
+  db.prepare(`
+    UPDATE shopkeepers
+    SET password_hash = ?
+    WHERE id = ?
+  `).run(passwordHash, shopkeeper.id);
+
+  passwordResetOtps.delete(shopkeeper.id);
+
+  res.json({
+    message: 'Password successfully change ho gaya! Ab naye password se login karein.'
   });
 });
 
