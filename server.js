@@ -84,14 +84,26 @@ let mailTransporter = null;
 
 if (process.env.SMTP_EMAIL && process.env.SMTP_APP_PASSWORD) {
   mailTransporter = nodemailer.createTransport({
-    service: 'gmail',
+    host: 'smtp.gmail.com',
+    port: 587,
+    secure: false,
+    requireTLS: true,
+
     auth: {
       user: process.env.SMTP_EMAIL,
       pass: String(process.env.SMTP_APP_PASSWORD).replace(/\s+/g, '')
-    }
+    },
+
+    connectionTimeout: 15000,
+    greetingTimeout: 15000,
+    socketTimeout: 15000
   });
+
+  console.log('Gmail SMTP transporter ready.');
 } else {
-  console.log('SMTP_EMAIL/SMTP_APP_PASSWORD missing - password reset email disabled.');
+  console.log(
+    'SMTP_EMAIL/SMTP_APP_PASSWORD missing - password reset email disabled.'
+  );
 }
 
 function cleanupExpiredOtps() {
