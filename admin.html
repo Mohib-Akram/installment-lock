@@ -54,7 +54,43 @@ th{font-size:12px;text-transform:uppercase;color:#667085;background:#fafafa}
 .toast.bad{background:#b42318}
 
 @media(max-width:800px){
-.sidebar{width:210px}main{margin-left:210px;width:calc(100% - 210px);padding:22px}.stats{grid-template-columns:1fr}
+  html, body{width:100%;max-width:100%;overflow-x:hidden;}
+  #app{width:100%;max-width:100%;min-height:100vh;display:flex;flex-direction:column;}
+  .sidebar{width:100%;max-width:100%;position:static;inset:auto;padding:14px 12px 10px;display:flex;flex-direction:column;gap:10px;box-sizing:border-box;}
+  .brand{margin:2px 4px 0;font-size:18px;}
+  .brand-sub{margin:0 4px 2px;}
+  .nav{width:100%;padding:10px 11px;text-align:center;}
+  .bottom{position:static;left:auto;right:auto;bottom:auto;padding-top:10px;}
+  main{width:100%;max-width:100%;margin:0;padding:18px 12px 30px;box-sizing:border-box;}
+  .topbar{align-items:flex-start;flex-direction:column;gap:12px;margin-bottom:18px;}
+  .topbar h1{font-size:24px;}
+  .topbar p{font-size:12px;line-height:1.45;}
+  .add-btn{width:100%;}
+  .stats{grid-template-columns:repeat(2,minmax(0,1fr));width:100%;gap:10px;}
+  .stat{min-width:0;padding:15px;}
+  .stat strong{font-size:24px;}
+  .card{width:100%;max-width:100%;}
+  .table-wrap{width:100%;max-width:100%;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;}
+  table{width:100%;min-width:700px;}
+  th,td{white-space:nowrap;padding:11px 10px;}
+  .modal-backdrop{padding:10px;align-items:center;}
+  .modal{max-width:100%;max-height:calc(100vh - 20px);overflow-y:auto;padding:20px 16px;}
+  .field input{min-width:0;}
+}
+@media(max-width:520px){
+  .stats{grid-template-columns:1fr;}
+  .stat{display:flex;align-items:center;justify-content:space-between;}
+  main{padding:15px 10px 26px;}
+  .sidebar{padding:12px 10px 9px;}
+  .nav{padding:9px 8px;font-size:13px;}
+  .topbar h1{font-size:22px;}
+  table{min-width:660px;}
+  th,td{padding:9px 8px;font-size:12px;}
+}
+@media(max-width:380px){
+  .brand{font-size:17px;}
+  .brand-sub{font-size:12px;}
+  .add-btn{padding:11px 13px;}
 }
 </style>
 </head>
