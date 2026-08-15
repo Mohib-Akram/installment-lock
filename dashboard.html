@@ -75,16 +75,6 @@
     display:none; background:var(--rust-soft); color:var(--rust);
     padding:10px 12px; border-radius:7px; font-size:12.5px; margin-bottom:14px;
   }
-
-  .forgot-link{display:block;text-align:center;margin-top:12px;color:var(--indigo);font-size:12.5px;font-weight:600;text-decoration:none;cursor:pointer;}
-  .forgot-link:hover{text-decoration:underline;}
-  .forgot-panel{display:none;margin-top:18px;padding-top:16px;border-top:1px solid var(--border);}
-  .forgot-panel.show{display:block;}
-  .forgot-panel h3{font-size:15px;color:var(--ink);margin:0 0 5px;font-family:'Manrope',sans-serif;}
-  .forgot-panel .forgot-sub{font-size:12px;color:var(--text-soft);margin:0 0 14px;line-height:1.45;}
-  .forgot-step{display:none;}
-  .forgot-step.show{display:block;}
-  .forgot-back{display:block;text-align:center;margin-top:10px;color:var(--text-soft);font-size:12px;cursor:pointer;}
   .login-btn{
     width:100%; background:var(--ink); color:#fff; border:none;
     padding:12px; border-radius:8px; font-size:14px; font-weight:700;
@@ -92,6 +82,25 @@
   }
   .login-btn:hover{background:var(--ink-soft);}
   .login-btn:disabled{opacity:0.6; cursor:not-allowed;}
+
+  .forgot-link{
+    display:block; width:100%; margin-top:12px; border:none; background:none;
+    color:var(--indigo); font-size:13px; font-weight:700; cursor:pointer; text-align:center;
+  }
+  .forgot-link:hover{text-decoration:underline;}
+  .reset-panel{
+    display:none; margin-top:18px; padding-top:18px; border-top:1px solid var(--border);
+  }
+  .reset-panel.show{display:block;}
+  .reset-panel h3{font-size:16px; margin:0 0 5px; color:var(--ink);}
+  .reset-panel .reset-sub{font-size:12px; color:var(--text-soft); margin:0 0 14px; line-height:1.5;}
+  .reset-step{display:none;}
+  .reset-step.active{display:block;}
+  .reset-msg{display:none; padding:10px 12px; border-radius:7px; font-size:12.5px; margin-bottom:12px; line-height:1.45;}
+  .reset-msg.show{display:block;}
+  .reset-msg.error{background:var(--rust-soft); color:var(--rust);}
+  .reset-msg.success{background:var(--green-soft); color:var(--green);}
+  .reset-back{display:block; width:100%; margin-top:10px; border:none; background:none; color:var(--text-soft); font-size:12.5px; cursor:pointer;}
 
   /* ===== Sidebar ===== */
   .sidebar{
@@ -485,39 +494,39 @@
       <input type="password" id="loginPassword" placeholder="Password" autocomplete="current-password">
     </div>
     <button class="login-btn" id="loginBtn" onclick="doLogin()">Login</button>
-    <a class="forgot-link" onclick="openForgotPassword()">Forgot Password?</a>
 
-    <div class="forgot-panel" id="forgotPanel">
+    <button class="forgot-link" id="forgotLink" type="button" onclick="toggleResetPanel(true)">Forgot Password?</button>
+
+    <div class="reset-panel" id="resetPanel">
       <h3>Reset Password</h3>
-      <p class="forgot-sub">Apna registered username ya email enter karein. OTP aapke registered email par bheja jayega.</p>
+      <p class="reset-sub">Apna registered username ya email enter karein. OTP aapke registered email par bheja jayega.</p>
+      <div id="resetMsg" class="reset-msg"></div>
 
-      <div class="forgot-step show" id="forgotStep1">
+      <div class="reset-step active" id="resetStep1">
         <div class="login-field">
           <label>Username or Registered Email</label>
-          <input type="text" id="forgotIdentifier" placeholder="Username ya email" autocomplete="username">
+          <input type="text" id="resetIdentifier" placeholder="Username or email" autocomplete="username">
         </div>
-        <button class="login-btn" id="sendOtpBtn" onclick="sendForgotOtp()">Send OTP</button>
+        <button class="login-btn" id="sendOtpBtn" type="button" onclick="sendResetOtp()">Send OTP</button>
       </div>
 
-      <div class="forgot-step" id="forgotStep2">
+      <div class="reset-step" id="resetStep2">
         <div class="login-field">
-          <label>OTP</label>
-          <input type="text" id="forgotOtp" inputmode="numeric" maxlength="6" placeholder="6-digit OTP" autocomplete="one-time-code">
+          <label>6-digit OTP</label>
+          <input type="text" id="resetOtp" placeholder="Enter OTP" inputmode="numeric" maxlength="6" autocomplete="one-time-code">
         </div>
         <div class="login-field">
           <label>New Password</label>
-          <input type="password" id="forgotNewPassword" minlength="6" placeholder="New password" autocomplete="new-password">
+          <input type="password" id="resetNewPassword" placeholder="New password" autocomplete="new-password">
         </div>
         <div class="login-field">
           <label>Confirm New Password</label>
-          <input type="password" id="forgotConfirmPassword" minlength="6" placeholder="Confirm password" autocomplete="new-password">
+          <input type="password" id="resetConfirmPassword" placeholder="Confirm password" autocomplete="new-password">
         </div>
-        <button class="login-btn" id="resetPasswordBtn" onclick="resetForgotPassword()">Reset Password</button>
-        <div class="forgot-back" onclick="sendForgotOtp()">Resend OTP</div>
+        <button class="login-btn" id="resetPasswordBtn" type="button" onclick="resetPassword()">Reset Password</button>
       </div>
 
-      <div id="forgotMessage" style="display:none;margin-top:12px;font-size:12.5px;line-height:1.45;"></div>
-      <div class="forgot-back" onclick="closeForgotPassword()">Back to Login</div>
+      <button class="reset-back" type="button" onclick="toggleResetPanel(false)">Back to Login</button>
     </div>
   </div>
 </div>
@@ -842,33 +851,41 @@
     loadPaymentDropdown();
   }
 
-  function openForgotPassword() {
-    document.getElementById('loginError').style.display = 'none';
-    document.getElementById('forgotPanel').classList.add('show');
-    document.getElementById('forgotMessage').style.display = 'none';
-    document.getElementById('forgotStep1').classList.add('show');
-    document.getElementById('forgotStep2').classList.remove('show');
-    document.getElementById('forgotIdentifier').focus();
+  function toggleResetPanel(show) {
+    const panel = document.getElementById('resetPanel');
+    if (!panel) return;
+    panel.classList.toggle('show', show);
+    if (!show) {
+      document.getElementById('resetStep1').classList.add('active');
+      document.getElementById('resetStep2').classList.remove('active');
+      clearResetMessage();
+      document.getElementById('resetIdentifier').value = '';
+      document.getElementById('resetOtp').value = '';
+      document.getElementById('resetNewPassword').value = '';
+      document.getElementById('resetConfirmPassword').value = '';
+    }
   }
 
-  function closeForgotPassword() {
-    document.getElementById('forgotPanel').classList.remove('show');
-    document.getElementById('forgotMessage').style.display = 'none';
-  }
-
-  function showForgotMessage(message, isError = false) {
-    const el = document.getElementById('forgotMessage');
+  function showResetMessage(message, type='error') {
+    const el = document.getElementById('resetMsg');
     el.textContent = message;
-    el.style.display = 'block';
-    el.style.color = isError ? 'var(--rust)' : 'var(--green)';
+    el.className = 'reset-msg show ' + type;
   }
 
-  async function sendForgotOtp() {
-    const identifier = document.getElementById('forgotIdentifier').value.trim();
+  function clearResetMessage() {
+    const el = document.getElementById('resetMsg');
+    if (!el) return;
+    el.textContent = '';
+    el.className = 'reset-msg';
+  }
+
+  async function sendResetOtp() {
+    const identifier = document.getElementById('resetIdentifier').value.trim();
     const btn = document.getElementById('sendOtpBtn');
+    clearResetMessage();
 
     if (!identifier) {
-      showForgotMessage('Username ya registered email enter karein.', true);
+      showResetMessage('Username ya registered email enter karein.');
       return;
     }
 
@@ -884,41 +901,42 @@
       const data = await response.json();
 
       if (!response.ok) {
-        showForgotMessage(data.error || 'OTP send nahi ho saka.', true);
+        showResetMessage(data.error || 'OTP send nahi ho saki.');
         return;
       }
 
-      showForgotMessage(data.message || 'OTP email kar diya gaya hai.');
-      document.getElementById('forgotStep1').classList.remove('show');
-      document.getElementById('forgotStep2').classList.add('show');
-      document.getElementById('forgotOtp').focus();
+      showResetMessage(data.message || 'OTP email par bhej di gayi hai.', 'success');
+      document.getElementById('resetStep1').classList.remove('active');
+      document.getElementById('resetStep2').classList.add('active');
     } catch (e) {
-      showForgotMessage('Server se connect nahi ho saka. Internet check karein.', true);
+      showResetMessage('Server se connect nahi ho saka. Internet check karein.');
     } finally {
       btn.disabled = false;
       btn.textContent = 'Send OTP';
     }
   }
 
-  async function resetForgotPassword() {
-    const identifier = document.getElementById('forgotIdentifier').value.trim();
-    const otp = document.getElementById('forgotOtp').value.trim();
-    const newPassword = document.getElementById('forgotNewPassword').value;
-    const confirmPassword = document.getElementById('forgotConfirmPassword').value;
+  async function resetPassword() {
+    const identifier = document.getElementById('resetIdentifier').value.trim();
+    const otp = document.getElementById('resetOtp').value.trim();
+    const newPassword = document.getElementById('resetNewPassword').value;
+    const confirmPassword = document.getElementById('resetConfirmPassword').value;
     const btn = document.getElementById('resetPasswordBtn');
 
-    if (!identifier || !otp || !newPassword || !confirmPassword) {
-      showForgotMessage('Sab fields fill karein.', true);
+    clearResetMessage();
+
+    if (!otp || !/^\d{6}$/.test(otp)) {
+      showResetMessage('6-digit OTP enter karein.');
       return;
     }
 
     if (newPassword.length < 6) {
-      showForgotMessage('New password kam az kam 6 characters ka hona chahiye.', true);
+      showResetMessage('Password kam az kam 6 characters ka hona chahiye.');
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      showForgotMessage('New password aur confirm password match nahi karte.', true);
+      showResetMessage('Dono passwords same hone chahiye.');
       return;
     }
 
@@ -929,34 +947,19 @@
       const response = await fetch(SERVER + '/shopkeeper/reset-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          identifier,
-          otp,
-          new_password: newPassword
-        })
+        body: JSON.stringify({ identifier, otp, newPassword })
       });
       const data = await response.json();
 
       if (!response.ok) {
-        showForgotMessage(data.error || 'Password reset nahi ho saka.', true);
+        showResetMessage(data.error || 'Password reset nahi ho saka.');
         return;
       }
 
-      showForgotMessage(data.message || 'Password successfully reset ho gaya.');
-      setTimeout(() => {
-        document.getElementById('forgotPanel').classList.remove('show');
-        document.getElementById('forgotStep1').classList.add('show');
-        document.getElementById('forgotStep2').classList.remove('show');
-        document.getElementById('forgotIdentifier').value = '';
-        document.getElementById('forgotOtp').value = '';
-        document.getElementById('forgotNewPassword').value = '';
-        document.getElementById('forgotConfirmPassword').value = '';
-        document.getElementById('forgotMessage').style.display = 'none';
-        document.getElementById('loginUsername').value = identifier;
-        document.getElementById('loginPassword').focus();
-      }, 1600);
+      showResetMessage(data.message || 'Password successfully change ho gaya.', 'success');
+      setTimeout(() => toggleResetPanel(false), 1400);
     } catch (e) {
-      showForgotMessage('Server se connect nahi ho saka. Internet check karein.', true);
+      showResetMessage('Server se connect nahi ho saka. Internet check karein.');
     } finally {
       btn.disabled = false;
       btn.textContent = 'Reset Password';
@@ -1010,13 +1013,6 @@
     localStorage.removeItem('token');
     showLogin();
   }
-
-  document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('forgotIdentifier').addEventListener('keydown', e => { if (e.key === 'Enter') sendForgotOtp(); });
-    document.getElementById('forgotOtp').addEventListener('keydown', e => { if (e.key === 'Enter') resetForgotPassword(); });
-    document.getElementById('forgotNewPassword').addEventListener('keydown', e => { if (e.key === 'Enter') resetForgotPassword(); });
-    document.getElementById('forgotConfirmPassword').addEventListener('keydown', e => { if (e.key === 'Enter') resetForgotPassword(); });
-  });
 
   // Enter key se bhi login ho sake
   document.addEventListener('DOMContentLoaded', () => {
