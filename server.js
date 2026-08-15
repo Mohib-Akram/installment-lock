@@ -5,7 +5,6 @@ const cors = require('cors');
 const db = require('./database');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const nodemailer = require('nodemailer');
 const crypto = require('crypto');
 
 // ===== JWT SECRET =====
@@ -76,40 +75,33 @@ const PORT = process.env.PORT || 3000;
 // =========================================================
 
 const resetOtps = new Map();
+
 const OTP_TTL_MS = 10 * 60 * 1000;
 const OTP_RESEND_MS = 60 * 1000;
 const OTP_MAX_ATTEMPTS = 5;
 
-let mailTransporter = null;
+// ===== RESEND EMAIL =====
+const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
+const RESEND_FROM_EMAIL =
+  process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
 
-if (process.env.SMTP_EMAIL && process.env.SMTP_APP_PASSWORD) {
-  mailTransporter = nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 587,
-    secure: false,
-    requireTLS: true,
-
-    auth: {
-      user: process.env.SMTP_EMAIL,
-      pass: String(process.env.SMTP_APP_PASSWORD).replace(/\s+/g, '')
-    },
-
-    connectionTimeout: 15000,
-    greetingTimeout: 15000,
-    socketTimeout: 15000
-  });
-
-  console.log('Gmail SMTP transporter ready.');
+if (RESEND_API_KEY) {
+  console.log(
+    `Resend email service configured. From: ${RESEND_FROM_EMAIL}`
+  );
 } else {
   console.log(
-    'SMTP_EMAIL/SMTP_APP_PASSWORD missing - password reset email disabled.'
+    'RESEND_API_KEY missing - password reset email disabled.'
   );
 }
 
 function cleanupExpiredOtps() {
   const now = Date.now();
+
   for (const [key, record] of resetOtps.entries()) {
-    if (record.expiresAt <= now) resetOtps.delete(key);
+    if (record.expiresAt <= now) {
+      resetOtps.delete(key);
+    }
   }
 }
 
@@ -122,7 +114,6 @@ function normalizeResetIdentifier(value) {
 function makeOtp() {
   return crypto.randomInt(100000, 1000000).toString();
 }
-
 
 // =========================================================
 // SHOPKEEPER TOKEN MIDDLEWARE
@@ -236,7 +227,9 @@ app.get('/dashboard', (req, res) => {
 // =========================================================
 
 app.post('/shopkeeper/forgot-password', async (req, res) => {
-  const identifier = normalizeResetIdentifier(req.body?.identifier);
+
+  const identifier =
+    normalizeResetIdentifier(req.body?.identifier);
 
   if (!identifier) {
     return res.status(400).json({
@@ -244,30 +237,46 @@ app.post('/shopkeeper/forgot-password', async (req, res) => {
     });
   }
 
-  if (!mailTransporter) {
+  if (!RESEND_API_KEY) {
     return res.status(503).json({
       error: 'Password reset email service configured nahi hai'
     });
   }
 
   const existing = resetOtps.get(identifier);
-  if (existing && existing.lastSentAt && Date.now() - existing.lastSentAt < OTP_RESEND_MS) {
+
+  if (
+    existing &&
+    existing.lastSentAt &&
+    Date.now() - existing.lastSentAt < OTP_RESEND_MS
+  ) {
     return res.status(429).json({
       error: 'OTP dobara bhejne se pehle 60 seconds wait karein.'
     });
   }
 
   const shopkeeper = db.prepare(`
-    SELECT id, naam, email, username, status
+    SELECT
+      id,
+      naam,
+      email,
+      username,
+      status
     FROM shopkeepers
-    WHERE LOWER(username) = ? OR LOWER(email) = ?
+    WHERE LOWER(username) = ?
+       OR LOWER(email) = ?
     LIMIT 1
   `).get(identifier, identifier);
 
   // Do not reveal whether an account exists.
-  if (!shopkeeper || !shopkeeper.email || shopkeeper.status === 'blocked') {
+  if (
+    !shopkeeper ||
+    !shopkeeper.email ||
+    shopkeeper.status === 'blocked'
+  ) {
     return res.json({
-      message: 'Agar account aur registered email mil gayi to OTP bheji jayegi.'
+      message:
+        'Agar account aur registered email mil gayi to OTP bheji jayegi.'
     });
   }
 
@@ -275,7 +284,7 @@ app.post('/shopkeeper/forgot-password', async (req, res) => {
   const now = Date.now();
 
   resetOtps.set(identifier, {
-    otp,
+    otp: otp,
     shopkeeperId: shopkeeper.id,
     username: shopkeeper.username,
     email: shopkeeper.email,
@@ -285,31 +294,98 @@ app.post('/shopkeeper/forgot-password', async (req, res) => {
   });
 
   try {
-    await mailTransporter.sendMail({
-      from: process.env.SMTP_EMAIL,
-      to: shopkeeper.email,
-      subject: 'Installment Lock — Password Reset OTP',
-      text: `Assalam-o-Alaikum ${shopkeeper.naam || shopkeeper.username},\n\nAapka password reset OTP hai: ${otp}\n\nYe OTP 10 minutes tak valid hai. Agar aapne password reset request nahi ki to is email ko ignore karein.`,
-      html: `
-        <div style="font-family:Arial,sans-serif;line-height:1.6;color:#172033;max-width:520px;margin:auto">
-          <h2>Installment Lock</h2>
-          <p>Assalam-o-Alaikum ${String(shopkeeper.naam || shopkeeper.username).replace(/[&<>"']/g, '')},</p>
-          <p>Aapka password reset OTP:</p>
-          <div style="font-size:32px;font-weight:800;letter-spacing:8px;padding:16px 0">${otp}</div>
-          <p>Ye OTP <strong>10 minutes</strong> tak valid hai.</p>
-          <p>Agar aapne password reset request nahi ki to is email ko ignore karein.</p>
-        </div>
-      `
-    });
+
+    const response = await fetch(
+      'https://api.resend.com/emails',
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${RESEND_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          from: RESEND_FROM_EMAIL,
+          to: [shopkeeper.email],
+          subject: 'Installment Lock — Password Reset OTP',
+          text:
+            `Assalam-o-Alaikum ${shopkeeper.naam || shopkeeper.username},
+
+Aapka password reset OTP hai: ${otp}
+
+Ye OTP 10 minutes tak valid hai.
+
+Agar aapne password reset request nahi ki to is email ko ignore karein.`,
+          html: `
+            <div style="
+              font-family:Arial,sans-serif;
+              line-height:1.6;
+              color:#172033;
+              max-width:520px;
+              margin:auto
+            ">
+              <h2>Installment Lock</h2>
+
+              <p>
+                Assalam-o-Alaikum
+                ${String(
+                  shopkeeper.naam ||
+                  shopkeeper.username
+                ).replace(/[&<>"']/g, '')},
+              </p>
+
+              <p>Aapka password reset OTP:</p>
+
+              <div style="
+                font-size:32px;
+                font-weight:800;
+                letter-spacing:8px;
+                padding:16px 0
+              ">
+                ${otp}
+              </div>
+
+              <p>
+                Ye OTP <strong>10 minutes</strong> tak valid hai.
+              </p>
+
+              <p>
+                Agar aapne password reset request nahi ki
+                to is email ko ignore karein.
+              </p>
+            </div>
+          `
+        })
+      }
+    );
+
+    const emailResult =
+      await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(
+        emailResult?.message ||
+        emailResult?.error ||
+        `Resend HTTP ${response.status}`
+      );
+    }
 
     return res.json({
-      message: 'OTP aapke registered email par bhej di gayi hai.'
+      message:
+        'OTP aapke registered email par bhej di gayi hai.'
     });
+
   } catch (error) {
+
     resetOtps.delete(identifier);
-    console.log('OTP email error:', error.message);
+
+    console.log(
+      'OTP email error:',
+      error.message
+    );
+
     return res.status(500).json({
-      error: 'OTP email nahi bheji ja saki. Thori dair baad dobara try karein.'
+      error:
+        'OTP email nahi bheji ja saki. Thori dair baad dobara try karein.'
     });
   }
 });
