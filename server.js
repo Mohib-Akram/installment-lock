@@ -1047,6 +1047,75 @@ app.post('/loans/:id/lock', verifyShopkeeperToken, (req, res) => {
 
 
 // =========================================================
+// DELETE COMPLETED LOAN
+// Sirf apne shopkeeper ke COMPLETED loans delete honge.
+// Pehle related payments delete kiye jate hain.
+// =========================================================
+
+app.delete('/loans/:id', verifyShopkeeperToken, (req, res) => {
+  const loanId = req.params.id;
+
+  try {
+    const loan = db.prepare(`
+      SELECT id, status, customer_id, phone_ka_naam
+      FROM loans
+      WHERE id = ?
+        AND shopkeeper_id = ?
+    `).get(loanId, req.shopkeeper_id);
+
+    if (!loan) {
+      return res.status(404).json({
+        error: 'Ye loan nahi mila'
+      });
+    }
+
+    if (loan.status !== 'completed') {
+      return res.status(400).json({
+        error: 'Sirf completed loan delete kiya ja sakta hai'
+      });
+    }
+
+    const deleteLoan = db.transaction(() => {
+      // Loan ke payment records bhi remove karo.
+      db.prepare(`
+        DELETE FROM payments
+        WHERE loan_id = ?
+      `).run(loanId);
+
+      const result = db.prepare(`
+        DELETE FROM loans
+        WHERE id = ?
+          AND shopkeeper_id = ?
+          AND status = 'completed'
+      `).run(loanId, req.shopkeeper_id);
+
+      if (result.changes === 0) {
+        throw new Error('Loan delete nahi ho saka');
+      }
+
+      return result.changes;
+    });
+
+    deleteLoan();
+
+    console.log(`Completed Loan #${loanId} delete ho gaya.`);
+
+    return res.json({
+      message: 'Completed loan successfully delete ho gaya!',
+      loan_id: Number(loanId)
+    });
+
+  } catch (error) {
+    console.log('Completed loan delete error:', error.message);
+
+    return res.status(500).json({
+      error: 'Completed loan delete nahi ho saka'
+    });
+  }
+});
+
+
+// =========================================================
 // PHONE UNLOCK
 // =========================================================
 

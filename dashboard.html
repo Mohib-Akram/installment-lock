@@ -273,6 +273,8 @@
   .btn-lock:hover{background:#A02A1E;}
   .btn-unlock{background:var(--green);}
   .btn-unlock:hover{background:#157F45;}
+  .btn-delete{background:var(--rust);}
+  .btn-delete:hover{background:#A02A1E;}
 
   /* ===== Search bar ===== */
   .search-wrap{position:relative; width:240px;}
@@ -1233,7 +1235,7 @@
   // ===== load + render loans =====
   async function loadLoans() {
     const list = document.getElementById('loanList');
-    list.innerHTML = '<tr class="loading-row"><td colspan="10"><span class="spinner"></span>Loading loans...</td></tr>';
+    list.innerHTML = '<tr class="loading-row"><td colspan="11"><span class="spinner"></span>Loading loans...</td></tr>';
 
     try {
       const response = await authFetch(SERVER + '/loans');
@@ -1267,11 +1269,11 @@
     list.innerHTML = '';
 
     if (allLoans.length === 0) {
-      list.innerHTML = '<tr class="empty-row"><td colspan="10">No loans yet. Add your first loan using the form above.</td></tr>';
+      list.innerHTML = '<tr class="empty-row"><td colspan="11">No loans yet. Add your first loan using the form above.</td></tr>';
       return;
     }
     if (filtered.length === 0) {
-      list.innerHTML = '<tr class="empty-row"><td colspan="10">No loans match your search.</td></tr>';
+      list.innerHTML = '<tr class="empty-row"><td colspan="11">No loans match your search.</td></tr>';
       return;
     }
 
@@ -1280,7 +1282,7 @@
       const actionButton = key === 'locked'
         ? `<button class="btn-sm btn-unlock" onclick="unlockPhone(${l.id})">Unlock</button>`
         : key === 'completed'
-          ? ''
+          ? `<button class="btn-sm btn-delete" onclick="deleteCompletedLoan(${l.id}, event)">Delete</button>`
           : `<button class="btn-sm btn-lock" onclick="lockPhone(${l.id})">Lock</button>`;
 // due date dikhao (agar set hai to), aur set karne ka button
       const dueDateText = l.next_due_date 
@@ -1339,6 +1341,53 @@
       toast(result.message, 'success');
       loadLoans();
     } catch (e) { /* session expired, already handled */ }
+  }
+
+  // ===== delete completed loan =====
+  async function deleteCompletedLoan(loanId, event) {
+    if (event) event.stopPropagation();
+
+    const loan = allLoans.find(l => Number(l.id) === Number(loanId));
+
+    // Safety: frontend only allows deletion of completed loans.
+    if (!loan || statusKey(loan.status) !== 'completed') {
+      toast('Sirf completed loan delete kiya ja sakta hai.', 'error');
+      return;
+    }
+
+    const customerName = loan.customer_naam || 'this customer';
+    const phoneName = loan.phone_ka_naam || 'this phone';
+
+    const confirmed = confirm(
+      `Loan #${loanId} completed hai.\\n\\n` +
+      `Customer: ${customerName}\\n` +
+      `Phone: ${phoneName}\\n\\n` +
+      `Kya aap is completed loan ko permanently delete karna chahte hain?`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      const response = await authFetch(SERVER + '/loans/' + loanId, {
+        method: 'DELETE'
+      });
+
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        toast(result.error || result.message || 'Loan delete nahi ho saka.', 'error');
+        return;
+      }
+
+      toast(result.message || 'Completed loan delete ho gaya.', 'success');
+
+      await loadLoans();
+      await loadPaymentDropdown();
+    } catch (e) {
+      if (e.message !== 'Session expired') {
+        toast('Loan delete karte waqt server error aa gaya.', 'error');
+      }
+    }
   }
 
   // ===== set due date (auto-lock ke liye) =====
