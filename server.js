@@ -62,6 +62,65 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
+// =========================================================
+// OFFLINE UNLOCK SYSTEM
+// Per-device secret + daily 6-digit HMAC codes.
+// =========================================================
+const OFFLINE_TIME_ZONE = 'Asia/Karachi';
+
+function offlineDateKey(date = new Date()) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: OFFLINE_TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit'
+  }).format(date);
+}
+
+function offlineEndOfDayIso(date = new Date()) {
+  return `${offlineDateKey(date)}T23:59:59+05:00`;
+}
+
+function makeOfflineSecret() {
+  return crypto.randomBytes(32).toString('base64url');
+}
+
+function makeOfflineCode(secret, loanId, dateKey, counter) {
+  const message = `${loanId}|${dateKey}|${counter}`;
+  const digest = crypto.createHmac('sha256', secret).update(message).digest('hex');
+  const check = Number.parseInt(digest.slice(0, 8), 16) % 1000;
+  // First 3 digits identify the generation; last 3 are the cryptographic check.
+  return String(counter).padStart(3, '0') + String(check).padStart(3, '0');
+}
+
+function ensureOfflineTables() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS offline_device_secrets (
+      loan_id INTEGER PRIMARY KEY,
+      secret TEXT NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS offline_unlock_codes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      loan_id INTEGER NOT NULL,
+      date_key TEXT NOT NULL,
+      counter INTEGER NOT NULL,
+      code TEXT NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(loan_id, date_key, counter),
+      UNIQUE(loan_id, date_key, code)
+    );
+  `);
+}
+ensureOfflineTables();
+
+function ensureLoanOfflineSecret(loanId) {
+  let row = db.prepare('SELECT secret FROM offline_device_secrets WHERE loan_id = ?').get(loanId);
+  if (!row) {
+    const secret = makeOfflineSecret();
+    db.prepare('INSERT INTO offline_device_secrets (loan_id, secret) VALUES (?, ?)').run(loanId, secret);
+    row = { secret };
+  }
+  return row.secret;
+}
+
 
 // =========================================================
 // RAILWAY PORT
@@ -948,6 +1007,8 @@ app.post('/loans', verifyShopkeeperToken, (req, res) => {
     req.shopkeeper_id
   );
 
+  ensureLoanOfflineSecret(result.lastInsertRowid);
+
   res.json({
     message: 'Loan add ho gaya!',
     loan_id: result.lastInsertRowid,
@@ -1007,7 +1068,57 @@ app.get('/loans/by-imei/:imei', (req, res) => {
     });
   }
 
-  res.json(loan);
+  const offline_secret = ensureLoanOfflineSecret(loan.id);
+  res.json({ ...loan, offline_secret });
+});
+
+
+// =========================================================
+// OFFLINE UNLOCK CODE GENERATE
+// =========================================================
+app.post('/loans/:id/offline-unlock-code', verifyShopkeeperToken, (req, res) => {
+  const loanId = Number(req.params.id);
+  const loan = db.prepare(`
+    SELECT id, status, shopkeeper_id FROM loans
+    WHERE id = ? AND shopkeeper_id = ?
+  `).get(loanId, req.shopkeeper_id);
+
+  if (!loan) return res.status(404).json({ error: 'Ye loan nahi mila' });
+  if (loan.status === 'completed') {
+    return res.status(400).json({ error: 'Completed loan ke liye offline unlock code nahi chahiye' });
+  }
+
+  const secret = ensureLoanOfflineSecret(loanId);
+  const dateKey = offlineDateKey();
+  const last = db.prepare(`
+    SELECT counter FROM offline_unlock_codes
+    WHERE loan_id = ? AND date_key = ?
+    ORDER BY counter DESC LIMIT 1
+  `).get(loanId, dateKey);
+
+  let counter = last ? Number(last.counter) + 1 : 1;
+  let code = null;
+  while (counter <= 999) {
+    const candidate = makeOfflineCode(secret, loanId, dateKey, counter);
+    const collision = db.prepare(`
+      SELECT id FROM offline_unlock_codes
+      WHERE loan_id = ? AND date_key = ? AND code = ?
+    `).get(loanId, dateKey, candidate);
+    if (!collision) { code = candidate; break; }
+    counter += 1;
+  }
+
+  if (!code) return res.status(429).json({ error: 'Aaj is loan ke liye code generation limit poori ho gayi hai' });
+
+  db.prepare(`
+    INSERT INTO offline_unlock_codes (loan_id, date_key, counter, code)
+    VALUES (?, ?, ?, ?)
+  `).run(loanId, dateKey, counter, code);
+
+  res.json({
+    message: 'Offline unlock code tayyar hai',
+    loan_id: loanId, code, counter, valid_until: offlineEndOfDayIso()
+  });
 });
 
 
@@ -1081,6 +1192,9 @@ app.delete('/loans/:id', verifyShopkeeperToken, (req, res) => {
         DELETE FROM payments
         WHERE loan_id = ?
       `).run(loanId);
+
+      db.prepare('DELETE FROM offline_unlock_codes WHERE loan_id = ?').run(loanId);
+      db.prepare('DELETE FROM offline_device_secrets WHERE loan_id = ?').run(loanId);
 
       const result = db.prepare(`
         DELETE FROM loans
