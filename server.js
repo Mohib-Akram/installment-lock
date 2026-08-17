@@ -80,31 +80,53 @@ const OTP_TTL_MS = 10 * 60 * 1000;
 const OTP_RESEND_MS = 60 * 1000;
 const OTP_MAX_ATTEMPTS = 5;
 
-// ===== GMAIL EMAIL (Nodemailer) =====
-const nodemailer = require('nodemailer');
+// ===== BREVO EMAIL (API-based, Railway par pakka chalta hai) =====
+const BREVO_API_KEY = process.env.BREVO_API_KEY || '';
+const BREVO_SENDER_EMAIL = process.env.BREVO_SENDER_EMAIL || '';
+const BREVO_SENDER_NAME = process.env.BREVO_SENDER_NAME || 'Installment Lock';
 
-const GMAIL_USER = process.env.SMTP_EMAIL || '';
-const GMAIL_APP_PASSWORD = process.env.SMTP_APP_PASSWORD || '';
+const emailServiceReady = !!(BREVO_API_KEY && BREVO_SENDER_EMAIL);
 
-let mailTransporter = null;
-
-if (GMAIL_USER && GMAIL_APP_PASSWORD) {
-  mailTransporter = nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 587,
-    secure: false,
-    family: 4,
-    auth: {
-      user: GMAIL_USER,
-      pass: GMAIL_APP_PASSWORD
-    },
-    tls: {
-      rejectUnauthorized: false
-    }
-  });
-  console.log(`Gmail email service configured. From: ${GMAIL_USER}`);
+if (emailServiceReady) {
+  console.log(`Brevo email service configured. From: ${BREVO_SENDER_EMAIL}`);
 } else {
-  console.log('GMAIL credentials missing - password reset email disabled.');
+  console.log('BREVO credentials missing - password reset email disabled.');
+}
+
+async function sendOtpEmail(toEmail, toName, otp) {
+  const cleanName = String(toName || '').replace(/[&<>"']/g, '');
+
+  const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'accept': 'application/json',
+      'api-key': BREVO_API_KEY,
+      'content-type': 'application/json'
+    },
+    body: JSON.stringify({
+      sender: { name: BREVO_SENDER_NAME, email: BREVO_SENDER_EMAIL },
+      to: [{ email: toEmail, name: cleanName || toEmail }],
+      subject: 'Installment Lock — Password Reset OTP',
+      textContent: `Assalam-o-Alaikum ${cleanName},\n\nAapka password reset OTP hai: ${otp}\n\nYe OTP 10 minutes tak valid hai.\n\nAgar aapne password reset request nahi ki to is email ko ignore karein.`,
+      htmlContent: `
+        <div style="font-family:Arial,sans-serif; line-height:1.6; color:#172033; max-width:520px; margin:auto">
+          <h2>Installment Lock</h2>
+          <p>Assalam-o-Alaikum ${cleanName},</p>
+          <p>Aapka password reset OTP:</p>
+          <div style="font-size:32px; font-weight:800; letter-spacing:8px; padding:16px 0">${otp}</div>
+          <p>Ye OTP <strong>10 minutes</strong> tak valid hai.</p>
+          <p>Agar aapne password reset request nahi ki to is email ko ignore karein.</p>
+        </div>
+      `
+    })
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Brevo error ${response.status}: ${errText}`);
+  }
+
+  return true;
 }
 
 function cleanupExpiredOtps() {
@@ -249,7 +271,7 @@ app.post('/shopkeeper/forgot-password', async (req, res) => {
     });
   }
 
-  if (!mailTransporter) {
+  if (!emailServiceReady) {
     return res.status(503).json({
       error: 'Password reset email service configured nahi hai'
     });
@@ -306,65 +328,15 @@ app.post('/shopkeeper/forgot-password', async (req, res) => {
   });
 
   try {
-
-    const cleanName = String(
-      shopkeeper.naam || shopkeeper.username
-    ).replace(/[&<>"']/g, '');
-
-    await mailTransporter.sendMail({
-      from: `"Installment Lock" <${GMAIL_USER}>`,
-      to: shopkeeper.email,
-      subject: 'Installment Lock — Password Reset OTP',
-      text:
-        `Assalam-o-Alaikum ${shopkeeper.naam || shopkeeper.username},
-
-Aapka password reset OTP hai: ${otp}
-
-Ye OTP 10 minutes tak valid hai.
-
-Agar aapne password reset request nahi ki to is email ko ignore karein.`,
-      html: `
-        <div style="
-          font-family:Arial,sans-serif;
-          line-height:1.6;
-          color:#172033;
-          max-width:520px;
-          margin:auto
-        ">
-          <h2>Installment Lock</h2>
-          <p>Assalam-o-Alaikum ${cleanName},</p>
-          <p>Aapka password reset OTP:</p>
-          <div style="
-            font-size:32px;
-            font-weight:800;
-            letter-spacing:8px;
-            padding:16px 0
-          ">
-            ${otp}
-          </div>
-          <p>Ye OTP <strong>10 minutes</strong> tak valid hai.</p>
-          <p>Agar aapne password reset request nahi ki to is email ko ignore karein.</p>
-        </div>
-      `
-    });
-
+    await sendOtpEmail(shopkeeper.email, shopkeeper.naam || shopkeeper.username, otp);
     return res.json({
-      message:
-        'OTP aapke registered email par bhej di gayi hai.'
+      message: 'OTP aapke registered email par bhej di gayi hai.'
     });
-
   } catch (error) {
-
     resetOtps.delete(identifier);
-
-    console.log(
-      'OTP email error:',
-      error.message
-    );
-
+    console.log('OTP email error:', error.message);
     return res.status(500).json({
-      error:
-        'OTP email nahi bheji ja saki. Thori dair baad dobara try karein.'
+      error: 'OTP email nahi bheji ja saki. Thori dair baad dobara try karein.'
     });
   }
 });
