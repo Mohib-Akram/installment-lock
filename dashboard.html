@@ -275,9 +275,6 @@
   .btn-unlock:hover{background:#157F45;}
   .btn-delete{background:var(--rust);}
   .btn-delete:hover{background:#A02A1E;}
-  .btn-offline{background:var(--indigo);}
-  .btn-offline:hover{filter:brightness(0.92);}
-
 
   /* ===== Search bar ===== */
   .search-wrap{position:relative; width:240px;}
@@ -1283,10 +1280,7 @@
     filtered.forEach(l => {
       const key = statusKey(l.status);
       const actionButton = key === 'locked'
-        ? `<div style="display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;">
-             <button class="btn-sm btn-unlock" onclick="unlockPhone(${l.id})">Unlock</button>
-             <button class="btn-sm btn-offline" onclick="generateOfflineCode(${l.id})">Offline Code</button>
-           </div>`
+        ? `<button class="btn-sm btn-unlock" onclick="unlockPhone(${l.id})">Unlock</button>`
         : key === 'completed'
           ? `<button class="btn-sm btn-delete" onclick="deleteCompletedLoan(${l.id}, event)">Delete</button>`
           : `<button class="btn-sm btn-lock" onclick="lockPhone(${l.id})">Lock</button>`;
@@ -1337,38 +1331,6 @@
       toast(result.message);
       loadLoans();
     } catch (e) { /* session expired, already handled */ }
-  }
-
-  // ===== generate offline unlock code =====
-  async function generateOfflineCode(loanId) {
-    try {
-      const response = await authFetch(
-        SERVER + '/loans/' + loanId + '/offline-unlock-code',
-        { method: 'POST' }
-      );
-
-      const result = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        toast(result.error || 'Offline code generate nahi ho saka.', 'error');
-        return;
-      }
-
-      const message =
-        `Loan #${loanId}\n\n` +
-        `Offline Unlock Code:\n\n` +
-        `${result.code}\n\n` +
-        `Valid for Pakistan date: ${result.valid_date}\n` +
-        `Generation: ${result.generation}\n\n` +
-        `Phone offline ho to customer ye 6-digit code lock screen par enter kare.`;
-
-      alert(message);
-      toast('Offline unlock code generate ho gaya.', 'success');
-    } catch (e) {
-      if (e.message !== 'Session expired') {
-        toast('Offline code generate karte waqt server error aa gaya.', 'error');
-      }
-    }
   }
 
   // ===== unlock phone =====
