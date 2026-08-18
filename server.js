@@ -108,6 +108,7 @@ function ensureOfflineTables() {
       secret TEXT NOT NULL,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
+
     CREATE TABLE IF NOT EXISTS offline_unlock_codes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       loan_id INTEGER NOT NULL,
@@ -117,6 +118,12 @@ function ensureOfflineTables() {
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(loan_id, date_key, counter),
       UNIQUE(loan_id, date_key, code)
+    );
+
+    CREATE TABLE IF NOT EXISTS device_control (
+      loan_id INTEGER PRIMARY KEY,
+      force_lock INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
   `);
 }
@@ -1166,31 +1173,54 @@ app.post('/loans/:id/offline-unlock-code', verifyShopkeeperToken, (req, res) => 
 
 app.post('/loans/:id/lock', verifyShopkeeperToken, (req, res) => {
 
-  const loanId = req.params.id;
+  const loanId = Number(req.params.id);
 
-  const command = db.prepare(`
-    UPDATE loans
-    SET status = 'locked'
+  const loan = db.prepare(`
+    SELECT id
+    FROM loans
     WHERE id = ?
       AND shopkeeper_id = ?
-  `);
+  `).get(loanId, req.shopkeeper_id);
 
-  const result = command.run(
-    loanId,
-    req.shopkeeper_id
-  );
-
-  if (result.changes === 0) {
+  if (!loan) {
     return res.status(404).json({
       error: 'Ye loan nahi mila'
     });
   }
 
+  // Server par phone LOCK
+  db.prepare(`
+    UPDATE loans
+    SET status = 'locked'
+    WHERE id = ?
+      AND shopkeeper_id = ?
+  `).run(
+    loanId,
+    req.shopkeeper_id
+  );
+
+  // Portal ka LOCK final authority hai
+  db.prepare(`
+    INSERT INTO device_control
+      (loan_id, force_lock, updated_at)
+    VALUES (?, 1, CURRENT_TIMESTAMP)
+    ON CONFLICT(loan_id)
+    DO UPDATE SET
+      force_lock = 1,
+      updated_at = CURRENT_TIMESTAMP
+  `).run(loanId);
+
+  // Phone ko push notification
   sendPushToLoan(loanId);
+
+  console.log(
+    `PORTAL LOCK: Loan #${loanId} ko force lock kar diya gaya.`
+  );
 
   res.json({
     message: 'Phone LOCK ho gaya!',
-    loan_id: loanId
+    loan_id: loanId,
+    status: 'locked'
   });
 });
 
@@ -1273,33 +1303,56 @@ app.delete('/loans/:id', verifyShopkeeperToken, (req, res) => {
 
 app.post('/loans/:id/unlock', verifyShopkeeperToken, (req, res) => {
 
-  const loanId = req.params.id;
+  const loanId = Number(req.params.id);
 
-  const command = db.prepare(`
+  const loan = db.prepare(`
+    SELECT id
+    FROM loans
+    WHERE id = ?
+      AND shopkeeper_id = ?
+  `).get(loanId, req.shopkeeper_id);
+
+  if (!loan) {
+    return res.status(404).json({
+      error: 'Ye loan nahi mila'
+    });
+  }
+
+  // Phone ko ACTIVE karo
+  db.prepare(`
     UPDATE loans
     SET
       status = 'active',
       next_due_date = datetime('now', '+30 days')
     WHERE id = ?
       AND shopkeeper_id = ?
-  `);
-
-  const result = command.run(
+  `).run(
     loanId,
     req.shopkeeper_id
   );
 
-  if (result.changes === 0) {
-    return res.status(404).json({
-      error: 'Ye loan nahi mila'
-    });
-  }
+  // Portal ka FORCE LOCK hata do
+  db.prepare(`
+    INSERT INTO device_control
+      (loan_id, force_lock, updated_at)
+    VALUES (?, 0, CURRENT_TIMESTAMP)
+    ON CONFLICT(loan_id)
+    DO UPDATE SET
+      force_lock = 0,
+      updated_at = CURRENT_TIMESTAMP
+  `).run(loanId);
 
+  // Phone ko unlock notification
   sendPushToLoan(loanId);
+
+  console.log(
+    `PORTAL UNLOCK: Loan #${loanId} force lock remove ho gaya.`
+  );
 
   res.json({
     message: 'Phone UNLOCK ho gaya! Agli due date 30 din aage.',
-    loan_id: loanId
+    loan_id: loanId,
+    status: 'active'
   });
 });
 
