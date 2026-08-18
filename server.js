@@ -347,30 +347,6 @@ app.post('/shopkeeper/forgot-password', async (req, res) => {
     });
   }
 
-  // ===== OFFLINE UNLOCK CODE DIKHANA (dashboard se, shopkeeper token chahiye) =====
-app.get('/loans/:id/offline-code', verifyShopkeeperToken, (req, res) => {
-  const loanId = req.params.id;
-
-  const loan = db.prepare(`
-    SELECT * FROM loans
-    WHERE id = ? AND shopkeeper_id = ?
-  `).get(loanId, req.shopkeeper_id);
-
-  if (!loan) {
-    return res.status(404).json({
-      error: 'Ye loan nahi mila'
-    });
-  }
-
-  const code = generateOfflineCode(loanId);
-
-  res.json({
-    code: code,
-    valid_for: 'Aaj (' + new Date().toISOString().split('T')[0] + ')',
-    loan_id: loanId
-  });
-});
-
   const existing = resetOtps.get(identifier);
 
   if (
@@ -1105,6 +1081,33 @@ app.get('/loans/by-imei/:imei', (req, res) => {
 
   const offline_secret = ensureLoanOfflineSecret(loan.id);
   res.json({ ...loan, offline_secret });
+});
+
+
+// =========================================================
+// OFFLINE UNLOCK CODE DIKHANA (dashboard se, shopkeeper token chahiye)
+// =========================================================
+app.get('/loans/:id/offline-code', verifyShopkeeperToken, (req, res) => {
+  const loanId = req.params.id;
+
+  const loan = db.prepare(`
+    SELECT * FROM loans
+    WHERE id = ? AND shopkeeper_id = ?
+  `).get(loanId, req.shopkeeper_id);
+
+  if (!loan) {
+    return res.status(404).json({
+      error: 'Ye loan nahi mila'
+    });
+  }
+
+  const code = generateOfflineCode(loanId);
+
+  res.json({
+    code: code,
+    valid_for: 'Aaj (' + new Date().toISOString().split('T')[0] + ')',
+    loan_id: loanId
+  });
 });
 
 
