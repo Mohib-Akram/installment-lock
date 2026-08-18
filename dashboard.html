@@ -1346,11 +1346,11 @@
 
   async function offlineUnlockCodeDikhao(loanId) {
     try {
-      const response = await authFetch(SERVER + '/loans/' + loanId + '/offline-code');
+      const response = await authFetch(SERVER + '/loans/' + loanId + '/offline-unlock-code', { method: 'POST' });
       const result = await response.json();
       if (response.ok) {
-        toast(`Aaj ka Code: ${result.code} — sirf aaj valid hai`, 'success');
-        alert(`📴 OFFLINE UNLOCK CODE\n\nCode: ${result.code}\n\nYe code customer ko batayein.\nSirf aaj (${result.valid_for}) valid hai.`);
+        toast(`Naya Code: ${result.code}`, 'success');
+        alert(`📴 OFFLINE UNLOCK CODE\n\nCode: ${result.code}\n\nYe code customer ko batayein.\nSirf aaj hi valid hai — is code se sirf ek baar unlock ho sakega.`);
       } else {
         toast(result.error || 'Code nahi mil saka', 'error');
       }
