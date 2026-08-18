@@ -1279,11 +1279,12 @@
 
     filtered.forEach(l => {
       const key = statusKey(l.status);
-      const actionButton = key === 'locked'
-        ? `<button class="btn-sm btn-unlock" onclick="unlockPhone(${l.id})">Unlock</button>`
-        : key === 'completed'
-          ? `<button class="btn-sm btn-delete" onclick="deleteCompletedLoan(${l.id}, event)">Delete</button>`
-          : `<button class="btn-sm btn-lock" onclick="lockPhone(${l.id})">Lock</button>`;
+     const actionButton = key === 'locked'
+  ? `<button class="btn-sm btn-unlock" onclick="unlockPhone(${l.id})">Unlock</button>
+     <button class="btn-sm" style="background:#f59e0b;color:#fff;" onclick="offlineUnlockCodeDikhao(${l.id})">📴 Offline Code</button>`
+  : key === 'completed'
+    ? `<button class="btn-sm btn-delete" onclick="deleteCompletedLoan(${l.id}, event)">Delete</button>`
+    : `<button class="btn-sm btn-lock" onclick="lockPhone(${l.id})">Lock</button>`;
 // due date dikhao (agar set hai to), aur set karne ka button
       const dueDateText = l.next_due_date 
         ? `<span class="mono" style="font-size:11.5px;">${l.next_due_date.substring(0,16)}</span>` 
@@ -1343,6 +1344,18 @@
     } catch (e) { /* session expired, already handled */ }
   }
 
+  async function offlineUnlockCodeDikhao(loanId) {
+    try {
+      const response = await authFetch(SERVER + '/loans/' + loanId + '/offline-code');
+      const result = await response.json();
+      if (response.ok) {
+        toast(`Aaj ka Code: ${result.code} — sirf aaj valid hai`, 'success');
+        alert(`📴 OFFLINE UNLOCK CODE\n\nCode: ${result.code}\n\nYe code customer ko batayein.\nSirf aaj (${result.valid_for}) valid hai.`);
+      } else {
+        toast(result.error || 'Code nahi mil saka', 'error');
+      }
+    } catch (e) { /* session expired, already handled */ }
+  }
   // ===== delete completed loan =====
   async function deleteCompletedLoan(loanId, event) {
     if (event) event.stopPropagation();

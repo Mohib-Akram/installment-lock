@@ -7,6 +7,17 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 
+// ===== OFFLINE UNLOCK CODE (bina internet ke unlock) =====
+const OFFLINE_SECRET_KEY = 'InstallmentLock2026SecureOfflineKey786';
+
+function generateOfflineCode(loanId) {
+  const aajKiTareekh = new Date().toISOString().split('T')[0]; // jaise "2026-08-17"
+  const data = `${loanId}-${aajKiTareekh}-${OFFLINE_SECRET_KEY}`;
+  const hash = crypto.createHash('sha256').update(data).digest('hex');
+  const codeNumber = parseInt(hash.substring(0, 8), 16) % 1000000;
+  return codeNumber.toString().padStart(6, '0');
+}
+
 // ===== JWT SECRET =====
 const JWT_SECRET = process.env.JWT_SECRET || 'qist-manager-secret-key-change-this';
 
@@ -335,6 +346,30 @@ app.post('/shopkeeper/forgot-password', async (req, res) => {
       error: 'Password reset email service configured nahi hai'
     });
   }
+
+  // ===== OFFLINE UNLOCK CODE DIKHANA (dashboard se, shopkeeper token chahiye) =====
+app.get('/loans/:id/offline-code', verifyShopkeeperToken, (req, res) => {
+  const loanId = req.params.id;
+
+  const loan = db.prepare(`
+    SELECT * FROM loans
+    WHERE id = ? AND shopkeeper_id = ?
+  `).get(loanId, req.shopkeeper_id);
+
+  if (!loan) {
+    return res.status(404).json({
+      error: 'Ye loan nahi mila'
+    });
+  }
+
+  const code = generateOfflineCode(loanId);
+
+  res.json({
+    code: code,
+    valid_for: 'Aaj (' + new Date().toISOString().split('T')[0] + ')',
+    loan_id: loanId
+  });
+});
 
   const existing = resetOtps.get(identifier);
 
