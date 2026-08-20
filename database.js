@@ -51,6 +51,7 @@ db.exec(`
     naam TEXT NOT NULL,
     cnic TEXT,
     phone_number TEXT,
+    email TEXT,
     pata TEXT,
     guarantor TEXT,
     banaya_gaya TEXT DEFAULT (datetime('now'))

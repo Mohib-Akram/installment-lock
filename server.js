@@ -364,6 +364,65 @@ Agar aapne password reset request nahi ki to is email ko ignore karein.`,
 }
 
 // ============================================================
+// SEND REMINDER EMAIL (BREVO SE)
+// ============================================================
+
+async function sendReminderEmail(toEmail, toName, dueDate, amount) {
+
+  if (!emailServiceReady) {
+    console.log('Reminder email nahi bheji - Brevo configured nahi hai');
+    return;
+  }
+
+  const cleanName = String(toName || '').replace(/[&<>"']/g, '');
+
+  try {
+
+    const response = await fetch(
+      'https://api.brevo.com/v3/smtp/email',
+      {
+        method: 'POST',
+        headers: {
+          'accept': 'application/json',
+          'api-key': BREVO_API_KEY,
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify({
+          sender: {
+            name: BREVO_SENDER_NAME,
+            email: BREVO_SENDER_EMAIL
+          },
+          to: [
+            { email: toEmail, name: cleanName || toEmail }
+          ],
+          subject: 'Aapki Installment Due Hone Wali Hai',
+          textContent: `Assalam-o-Alaikum ${cleanName},\n\nAapki agli installment ${dueDate} ko due hai.\nRaqam: Rs. ${amount}\n\nWaqt par payment karke phone lock hone se bachein.`,
+          htmlContent: `
+            <div style="font-family:Arial,sans-serif; line-height:1.6; color:#172033; max-width:520px; margin:auto">
+              <h2>Installment Reminder</h2>
+              <p>Assalam-o-Alaikum ${cleanName},</p>
+              <p>Aapki agli installment <strong>${dueDate}</strong> ko due hai.</p>
+              <p>Raqam: <strong>Rs. ${amount}</strong></p>
+              <p>Waqt par payment karke phone lock hone se bachein.</p>
+            </div>
+          `
+        })
+      }
+    );
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Brevo error ${response.status}: ${errText}`);
+    }
+
+    console.log(`Reminder email bheja: ${toEmail}`);
+
+  } catch (e) {
+    console.log('Reminder email masla:', e.message);
+  }
+}
+
+// ============================================================
 // OTP CLEANUP
 // ============================================================
 
@@ -1375,15 +1434,14 @@ app.post(
       naam,
       cnic,
       phone_number,
+      email,
       pata,
       guarantor
     } = req.body;
 
     if (!naam) {
-
       return res.status(400).json({
-        error:
-          'Customer ka naam zaroori hai'
+        error: 'Customer ka naam zaroori hai'
       });
     }
 
@@ -1394,11 +1452,12 @@ app.post(
             naam,
             cnic,
             phone_number,
+            email,
             pata,
             guarantor,
             shopkeeper_id
           )
-        VALUES (?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
       `);
 
     const result =
@@ -1406,16 +1465,15 @@ app.post(
         naam,
         cnic,
         phone_number,
+        email,
         pata,
         guarantor,
         req.shopkeeper_id
       );
 
     return res.json({
-      message:
-        'Customer add ho gaya!',
-      customer_id:
-        result.lastInsertRowid
+      message: 'Customer add ho gaya!',
+      customer_id: result.lastInsertRowid
     });
   }
 );
@@ -2843,6 +2901,48 @@ setInterval(
 console.log(
   'Chowkidar shuru ho gaya - har 30 second overdue check karega.'
 );
+
+// ============================================================
+// REMINDER CHOWKIDAR
+// DIN MEIN 2 BAAR CHECK - 2 DIN PEHLE REMINDER EMAIL
+// ============================================================
+
+function reminderChowkidarCheck() {
+
+  const twoDaysLater = new Date();
+  twoDaysLater.setDate(twoDaysLater.getDate() + 2);
+  const targetDate = twoDaysLater.toISOString().split('T')[0];
+
+  const upcomingLoans = db.prepare(`
+    SELECT
+      loans.*,
+      customers.naam AS customer_naam,
+      customers.email AS customer_email
+    FROM loans
+    JOIN customers ON loans.customer_id = customers.id
+    WHERE loans.status = 'active'
+      AND loans.next_due_date IS NOT NULL
+      AND date(loans.next_due_date) = date(?)
+  `).all(targetDate);
+
+  upcomingLoans.forEach(loan => {
+    if (loan.customer_email) {
+      sendReminderEmail(
+        loan.customer_email,
+        loan.customer_naam,
+        loan.next_due_date,
+        loan.per_month
+      );
+    }
+  });
+
+  if (upcomingLoans.length > 0) {
+    console.log(`Reminder Chowkidar ne ${upcomingLoans.length} reminder email bheje`);
+  }
+}
+
+setInterval(reminderChowkidarCheck, 12 * 60 * 60 * 1000);
+console.log('Reminder Chowkidar shuru ho gaya - din mein 2 baar check karega.');
 
 // ============================================================
 // SERVER START
