@@ -133,6 +133,33 @@ function ensureOfflineTables() {
   `);
 }
 
+// ============================================================
+// CUSTOMERS TABLE - AUTO MIGRATION
+// Har server start par missing columns khud add ho jate hain.
+// (Local aur Railway dono database is se automatically theek ho jate hain)
+// ============================================================
+
+function ensureCustomerColumns() {
+
+  const requiredColumns = [
+    { name: 'email', type: 'TEXT' },
+    { name: 'cnic_front_photo', type: 'TEXT' },
+    { name: 'cnic_back_photo', type: 'TEXT' }
+  ];
+
+  const existingColumns = db.prepare(`PRAGMA table_info(customers)`).all()
+    .map(col => col.name);
+
+  requiredColumns.forEach(col => {
+    if (!existingColumns.includes(col.name)) {
+      db.exec(`ALTER TABLE customers ADD COLUMN ${col.name} ${col.type}`);
+      console.log(`Migration: customers.${col.name} column add ho gaya`);
+    }
+  });
+}
+
+ensureCustomerColumns();
+
 ensureOfflineTables();
 
 // ============================================================
