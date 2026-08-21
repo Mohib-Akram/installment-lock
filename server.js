@@ -10,6 +10,7 @@ const db = require('./database');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+const upload = require('./uploadConfig');
 
 // ============================================================
 // JWT SECRET
@@ -45,6 +46,7 @@ const app = express();
 
 app.use(express.json());
 app.use(cors());
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ============================================================
 // RAILWAY PORT
@@ -966,6 +968,43 @@ app.post(
     });
   }
 );
+
+// CNIC Photo Upload Route
+app.post('/api/customers/:id/upload-cnic', upload.fields([
+  { name: 'cnic_front', maxCount: 1 },
+  { name: 'cnic_back', maxCount: 1 }
+]), (req, res) => {
+  try {
+    const customerId = req.params.id;
+
+    if (!req.files || (!req.files.cnic_front && !req.files.cnic_back)) {
+      return res.status(400).json({ success: false, message: 'Koi photo upload nahi hui' });
+    }
+
+    const cnicFrontPath = req.files.cnic_front ? `/uploads/cnic/${req.files.cnic_front[0].filename}` : null;
+    const cnicBackPath = req.files.cnic_back ? `/uploads/cnic/${req.files.cnic_back[0].filename}` : null;
+
+    const db = require('./database');
+
+    if (cnicFrontPath) {
+      db.prepare('UPDATE customers SET cnic_front_photo = ? WHERE id = ?').run(cnicFrontPath, customerId);
+    }
+    if (cnicBackPath) {
+      db.prepare('UPDATE customers SET cnic_back_photo = ? WHERE id = ?').run(cnicBackPath, customerId);
+    }
+
+    res.json({
+      success: true,
+      message: 'CNIC photos upload ho gayi',
+      cnic_front_photo: cnicFrontPath,
+      cnic_back_photo: cnicBackPath
+    });
+
+  } catch (error) {
+    console.error('CNIC upload error:', error);
+    res.status(500).json({ success: false, message: 'Upload mein error aayi', error: error.message });
+  }
+});
 
 // ============================================================
 // SHOPKEEPER PROFILE

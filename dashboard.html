@@ -1088,6 +1088,82 @@
       font-size: 12px;
     }
 
+    .cnic-section {
+      margin-top: 20px;
+    }
+
+    .cnic-upload-box {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .cnic-slot {
+      border: 1px dashed var(--border);
+      border-radius: 8px;
+      padding: 10px;
+      text-align: center;
+      background: var(--paper);
+    }
+
+    .cnic-slot label {
+      display: block;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-soft);
+      margin-bottom: 6px;
+    }
+
+    .cnic-slot img {
+      width: 100%;
+      height: 80px;
+      object-fit: cover;
+      border-radius: 6px;
+      margin-bottom: 6px;
+      display: block;
+    }
+
+    .cnic-slot .no-photo {
+      height: 80px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-faint);
+      font-size: 11px;
+      background: #ECEDF2;
+      border-radius: 6px;
+      margin-bottom: 6px;
+    }
+
+    .cnic-slot input[type="file"] {
+      font-size: 11px;
+      width: 100%;
+      padding: 4px;
+    }
+
+    .cnic-upload-btn {
+      width: 100%;
+      background: var(--indigo);
+      color: #fff;
+      border: none;
+      padding: 9px;
+      border-radius: 7px;
+      font-size: 12.5px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+    }
+
+    .cnic-upload-btn:hover {
+      background: #3A4BC0;
+    }
+
+    .cnic-upload-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
     @media (max-width: 860px) {
 
       html,
@@ -1734,6 +1810,22 @@
       <div class="detail-row"><span>CNIC</span><span id="detailCnic">-</span></div>
       <div class="detail-row"><span>Address</span><span id="detailAddress">-</span></div>
       <div class="detail-row"><span>Guarantor</span><span id="detailGuarantor">-</span></div>
+      <div class="cnic-section">
+        <div class="detail-loans-title">CNIC Photos</div>
+        <div class="cnic-upload-box">
+          <div class="cnic-slot">
+            <label>Front</label>
+            <div id="cnicFrontPreview"></div>
+            <input type="file" id="cnicFrontFile" accept="image/jpeg,image/jpg,image/png">
+          </div>
+          <div class="cnic-slot">
+            <label>Back</label>
+            <div id="cnicBackPreview"></div>
+            <input type="file" id="cnicBackFile" accept="image/jpeg,image/jpg,image/png">
+          </div>
+        </div>
+        <button class="cnic-upload-btn" id="cnicUploadBtn" onclick="uploadCnicPhotos()">Upload CNIC Photos</button>
+      </div>
       <div class="detail-loans-title">Loans</div>
       <div id="detailLoans"></div>
     </div>
@@ -2131,6 +2223,11 @@
     function openDetail(customerId) {
       const c = allCustomers.find(x => x.id === customerId);
       if (!c) return;
+      currentDetailCustomerId = customerId;
+      document.getElementById('cnicFrontFile').value = '';
+      document.getElementById('cnicBackFile').value = '';
+      renderCnicPreview('cnicFrontPreview', c.cnic_front_photo);
+      renderCnicPreview('cnicBackPreview', c.cnic_back_photo);
 
       document.getElementById('detailAvatar').textContent = initials(c.naam);
       document.getElementById('detailName').textContent = c.naam;
@@ -2172,6 +2269,83 @@
       document.getElementById('overlay').classList.remove('show');
       document.getElementById('detailPanel').classList.remove('show');
     }
+
+    // ===== CNIC photo preview + upload =====
+    function cnicPhotoUrl(path) {
+      if (!path) return null;
+      return SERVER + path;
+    }
+
+    function renderCnicPreview(elId, photoPath) {
+      const el = document.getElementById(elId);
+      if (photoPath) {
+        el.innerHTML = `<img src="${cnicPhotoUrl(photoPath)}" alt="CNIC">`;
+      } else {
+        el.innerHTML = `<div class="no-photo">No photo yet</div>`;
+      }
+    }
+
+    let currentDetailCustomerId = null;
+
+    async function uploadCnicPhotos() {
+      const frontFile = document.getElementById('cnicFrontFile').files[0];
+      const backFile = document.getElementById('cnicBackFile').files[0];
+
+      if (!frontFile && !backFile) {
+        toast('Pehle koi photo select karein.', 'error');
+        return;
+      }
+
+      if (!currentDetailCustomerId) {
+        toast('Customer select nahi hai.', 'error');
+        return;
+      }
+
+      const formData = new FormData();
+      if (frontFile) formData.append('cnic_front', frontFile);
+      if (backFile) formData.append('cnic_back', backFile);
+
+      const btn = document.getElementById('cnicUploadBtn');
+      btn.disabled = true;
+      btn.textContent = 'Uploading...';
+
+      try {
+        const response = await authFetch(SERVER + '/api/customers/' + currentDetailCustomerId + '/upload-cnic', {
+          method: 'POST',
+          body: formData
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          toast(result.message || 'Upload nahi ho saka.', 'error');
+          return;
+        }
+
+        toast('CNIC photos upload ho gayin!', 'success');
+
+        // local data update karo taake preview turant dikhe
+        const c = allCustomers.find(x => x.id === currentDetailCustomerId);
+        if (c) {
+          if (result.cnic_front_photo) c.cnic_front_photo = result.cnic_front_photo;
+          if (result.cnic_back_photo) c.cnic_back_photo = result.cnic_back_photo;
+        }
+
+        if (result.cnic_front_photo) renderCnicPreview('cnicFrontPreview', result.cnic_front_photo);
+        if (result.cnic_back_photo) renderCnicPreview('cnicBackPreview', result.cnic_back_photo);
+
+        document.getElementById('cnicFrontFile').value = '';
+        document.getElementById('cnicBackFile').value = '';
+
+      } catch (e) {
+        // session expired, already handled
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Upload CNIC Photos';
+      }
+    }
+
+
 
     // ===== add new loan =====
     async function addLoan() {
